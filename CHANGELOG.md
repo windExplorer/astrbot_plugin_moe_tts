@@ -1,5 +1,14 @@
 # 更新日志
 
+## v0.5.2
+
+修复真机发送消息失败（`list has no attribute 'chain'`）。
+
+- **现象**：真机日志反复出现 `[moe_tts] 发送消息失败: 'list' object has no attribute 'chain'`，语音发不出去。
+- **根因**：`_realtime_send()` 把 `list[Component]` 直接传给 `context.send_message()`，但 AstrBot 的该 API 要的是 `MessageChain` 对象（内部访问 `.chain` 属性）。
+- **修复**：发送前统一用 `MessageChain(list(chain))` 包装（已是 MessageChain 则跳过）。参考 AstrBot 4.29.4 源码与 cosyvoice 插件的主动发送写法确认。
+- **防再发**：`tests/test_hooks.py` 新增 AST 守卫——检测 `_realtime_send` 里 `send_message` 调用前必须有 `MessageChain(...)` 构造；已验证旧写法会被捕获。自检 core 104 + webui 41 + hooks 8 项全过。
+
 ## v0.5.1
 
 修复自定义下拉框被遮挡的问题。

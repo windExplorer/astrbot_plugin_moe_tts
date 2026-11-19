@@ -120,6 +120,28 @@ def main():
         check("_refresh_cfg 不调用 context.get_config", fn is not None and not bad_calls,
               f"bad call lines={bad_calls}")
 
+    # 守卫「主动发送必须包 MessageChain」：
+    # 曾因直接传 list 给 send_message 报 'list' object has no attribute 'chain'
+    import ast as _ast
+    tree = _ast.parse(src)
+    cls = next((n for n in tree.body
+                if isinstance(n, _ast.ClassDef) and n.name == "MoeTtsPlugin"), None)
+    rsend = next((n for n in cls.body if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef))
+                  and n.name == "_realtime_send"), None) if cls else None
+    has_send = False
+    has_wrap = False
+    if rsend:
+        for node in _ast.walk(rsend):
+            if isinstance(node, _ast.Call):
+                f = node.func
+                if isinstance(f, _ast.Attribute) and f.attr == "send_message":
+                    has_send = True
+                if isinstance(f, _ast.Name) and f.id == "MessageChain":
+                    has_wrap = True
+    check("_realtime_send 主动发送包 MessageChain",
+          rsend is not None and has_send and has_wrap,
+          f"send={has_send} wrap={has_wrap}")
+
     print(f"\nRESULT: PASS={PASS} FAIL={FAIL}")
     return 1 if FAIL else 0
 

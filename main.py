@@ -529,6 +529,10 @@ class MoeTtsPlugin(Star):
 
     async def _realtime_send(self, event, chain) -> bool:
         try:
+            # context.send_message() 要的是 MessageChain 对象（内部访问 .chain），
+            # 不能直接传 list[Component]，否则报 'list' object has no attribute 'chain'
+            if not isinstance(chain, MessageChain):
+                chain = MessageChain(list(chain))
             await self.context.send_message(event.unified_msg_origin, chain)
             return True
         except Exception as e:  # noqa: BLE001

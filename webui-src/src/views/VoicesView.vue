@@ -1,9 +1,17 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { Mic2, Search, Plus, Play, Pencil, Trash2, Star, Volume2, X, LoaderCircle, RefreshCw, CloudDownload } from "lucide-vue-next";
+import BaseSelect from "../components/BaseSelect.vue";
 import { apiGet, apiPost } from "../api";
 import type { Voice } from "../api";
 import { toast } from "../toast";
+
+const LANG_OPTIONS = [
+  { value: "zh", label: "中文 zh" }, { value: "en", label: "英文 en" },
+  { value: "ja", label: "日文 ja" }, { value: "ko", label: "韩文 ko" },
+  { value: "ru", label: "俄文 ru" }, { value: "th", label: "泰文 th" },
+  { value: "", label: "未分类" },
+];
 
 const voices = ref<Voice[]>([]);
 const defaultVoice = ref("");
@@ -11,7 +19,6 @@ const keyword = ref("");
 const loading = ref(true);
 const syncing = ref(false);
 const snapshot = ref<{ synced_at: string; source_url: string; count: number }>({ synced_at: "", source_url: "", count: 0 });
-const previewText = ref("你好呀，这是萌萌语音的音色试听。今天天气不错，我们出去走走吧～");
 const playing = ref("");
 const audio = new Audio();
 
@@ -95,18 +102,20 @@ async function preview(v: Voice) {
   if (playing.value === v.name) { audio.pause(); playing.value = ""; return; }
   playing.value = v.name;
   try {
-    const r = await apiPost<{ audio: string }>("synthesize", { text: previewText.value, voice: v.name }, 300000);
+    // 直接取服务端参考音频（本地缓存优先），不走 TTS 克隆，秒开
+    const r = await apiGet<{ audio: string; cached: boolean }>("voice/audio", { name: v.name }, 30000);
     audio.src = r.audio;
     audio.onended = () => { playing.value = ""; };
     audio.onerror = () => { playing.value = ""; toast("音频播放失败", "err"); };
     await audio.play();
+    if (r.cached) { /* 命中本地缓存 */ }
   } catch (e: any) { playing.value = ""; toast(e?.message || "试听失败", "err"); }
 }
 </script>
 
 <template>
   <div class="stack">
-    <div class="card">
+    <div class="card toolbar-sticky">
       <!-- 服务端音色快照信息 -->
       <div class="row wrap" style="padding-bottom:12px;border-bottom:1px solid var(--border);margin-bottom:14px;gap:8px">
         <CloudDownload :size="16" color="var(--brand-2)" />
@@ -130,10 +139,6 @@ async function preview(v: Voice) {
         </div>
         <button class="btn btn-primary" @click="openAdd"><Plus :size="16" /> 新增音色</button>
         <button class="btn" @click="load"><RefreshCw :size="15" /> 刷新</button>
-      </div>
-      <div class="field" style="margin-top:14px">
-        <label class="field-label"><Volume2 :size="13" style="vertical-align:-2px" /> 试听文本（点任意音色播放）</label>
-        <input v-model="previewText" class="input" placeholder="输入一段用于试听的文本" />
       </div>
     </div>
 
@@ -192,10 +197,7 @@ async function preview(v: Voice) {
           <div class="field"><label class="field-label">参考音频文件</label><input v-model="form.file" class="input" placeholder="服务端音色文件名，如 xiaoyu.wav" /></div>
           <div class="field"><label class="field-label">参考文本</label><textarea v-model="form.text" class="textarea" placeholder="音频对应的逐字原文（极速克隆可留空）"></textarea></div>
           <div class="field"><label class="field-label">语种</label>
-            <select v-model="form.language" class="select">
-              <option value="zh">中文 zh</option><option value="en">英文 en</option><option value="ja">日文 ja</option>
-              <option value="ko">韩文 ko</option><option value="ru">俄文 ru</option><option value="th">泰文 th</option><option value="">未分类</option>
-            </select>
+            <BaseSelect v-model="form.language" :options="LANG_OPTIONS" />
           </div>
           <div class="row" style="justify-content:space-between">
             <span>注入副语言标记</span><button class="switch" :class="{ on: form.markup }" @click="form.markup = !form.markup"></button>

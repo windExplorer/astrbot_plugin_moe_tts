@@ -4,9 +4,15 @@ import {
   MessagesSquare, Search, Trash2, Volume2, Settings2, X, RefreshCw,
   MessageCircle, Users, ImageUp, CloudDownload, AlertTriangle,
 } from "lucide-vue-next";
+import BaseSelect from "../components/BaseSelect.vue";
 import { apiGet, apiPost } from "../api";
 import type { Session, Voice } from "../api";
 import { toast } from "../toast";
+
+const SEND_OPTIONS = [
+  { value: "", label: "跟随全局" }, { value: "both", label: "语音 + 文字" },
+  { value: "voice_only", label: "仅语音" },
+];
 
 interface SessionFull extends Session {
   is_group: boolean;
@@ -28,6 +34,10 @@ interface ContactsData {
 const rawSessions = ref<SessionFull[]>([]);
 const contacts = ref<ContactsData>({ friends: [], groups: [], meta: { synced_at: "", platforms: 0, friends: 0, groups: 0, error: "" } });
 const voices = ref<Voice[]>([]);
+const VOICE_OPTIONS = computed(() => [
+  { value: "", label: "跟随默认" },
+  ...voices.value.map((v) => ({ value: v.name, label: v.name })),
+]);
 const keyword = ref("");
 const tab = ref<"all" | "private" | "group">("all");
 const loading = ref(true);
@@ -208,7 +218,7 @@ async function saveEdit() {
 <template>
   <div class="stack">
     <!-- 联系人同步信息 -->
-    <div class="card">
+    <div class="card toolbar-sticky">
       <div class="row wrap" style="padding-bottom:12px;border-bottom:1px solid var(--border);margin-bottom:14px;gap:8px">
         <CloudDownload :size="16" color="var(--brand-2)" />
         <div style="font-size:12px;color:var(--muted);flex:1;min-width:180px">
@@ -296,17 +306,10 @@ async function saveEdit() {
             </div>
           </div>
           <div class="field"><label class="field-label">音色</label>
-            <select v-model="editing.voice" class="select">
-              <option value="">跟随默认</option>
-              <option v-for="v in voices" :key="v.name" :value="v.name">{{ v.name }}</option>
-            </select>
+            <BaseSelect v-model="editing.voice" :options="VOICE_OPTIONS" />
           </div>
           <div class="field"><label class="field-label">发送方式</label>
-            <select v-model="editing.send_mode" class="select">
-              <option value="">跟随全局</option>
-              <option value="both">语音 + 文字</option>
-              <option value="voice_only">仅语音</option>
-            </select>
+            <BaseSelect v-model="editing.send_mode" :options="SEND_OPTIONS" />
           </div>
           <div class="row" style="justify-content:space-between">
             <span>自动语音</span><button class="switch" :class="{ on: editing.on }" @click="editing.on = !editing.on"></button>

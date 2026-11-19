@@ -34,6 +34,7 @@ def register_web_apis(plugin) -> None:
         ("/voices/default", _voice_default, ["POST"], "设置默认音色"),
         ("/voices/sync", _voice_sync, ["POST"], "从服务端同步音色列表到本地快照"),
         ("/voices/snapshot", _voice_snapshot, ["GET"], "服务端音色快照元信息"),
+        ("/voice/audio", _voice_audio, ["GET"], "音色试听：取服务端参考音频（本地缓存优先）"),
         ("/sessions", _sessions, ["GET"], "会话语音状态列表（群/私聊、群名、头像、活跃）"),
         ("/sessions/set", _session_set, ["POST"], "设置会话语音状态"),
         ("/sessions/delete", _session_delete, ["POST"], "删除会话状态"),
@@ -216,6 +217,67 @@ def _voice_sync(plugin):
 def _voice_snapshot(plugin):
     async def handler():
         return json_response(plugin.store.server_voice_snapshot())
+    return handler
+
+
+def _voice_audio(plugin):
+    """音色试听：本地缓存命中直接返回，否则从服务端取参考音频并落盘缓存。
+
+    与合成试听的区别：这里拿到的是服务端已有的原始参考音频，不走 TTS 克隆，
+    速度快、不占 GPU。缓存目录 <data_dir>/voice_previews/。
+    """
+    async def handler():
+        import hashlib
+        import mimetypes
+
+        name = str(request.query.get("name") or "").strip()
+        if not name:
+            return error_response("缺少音色名 name")
+        force = str(request.query.get("force") or "").lower() in ("1", "true", "yes")
+        key = hashlib.sha256(name.encode("utf-8")).hexdigest()[:20]
+        cache_dir = os.path.join(plugin.store.data_dir, "voice_previews")
+        os.makedirs(cache_dir, exist_ok=True)
+        cache_file = os.path.join(cache_dir, key + ".audio")
+        meta_file = os.path.join(cache_dir, key + ".meta")
+        data: bytes | None = None
+        content_type = "audio/wav"
+        if not force and os.path.isfile(cache_file):
+            try:
+                with open(cache_file, "rb") as f:
+                    data = f.read()
+                if os.path.isfile(meta_file):
+                    with open(meta_file, "r", encoding="utf-8") as f:
+                        content_type = f.read().strip() or content_type
+            except Exception:
+                data = None
+        if data is None:
+            adapter = plugin.router.adapter
+            if adapter is None:
+                return error_response("未配置语音服务端")
+            try:
+                got = await adapter.voice_audio(name)
+            except Exception as e:  # noqa: BLE001
+                return error_response(f"获取参考音频失败: {e}")
+            if not got:
+                return error_response("服务端没有该音色的参考音频（可能服务端未升级或音色名不匹配）")
+            data, content_type = got
+            try:
+                tmp = cache_file + ".tmp"
+                with open(tmp, "wb") as f:
+                    f.write(data)
+                os.replace(tmp, cache_file)
+                with open(meta_file + ".tmp", "w", encoding="utf-8") as f:
+                    f.write(content_type or "audio/wav")
+                os.replace(meta_file + ".tmp", meta_file)
+            except Exception as e:  # noqa: BLE001
+                logger.debug(f"[moe_tts] 参考音频缓存写入失败: {e}")
+        b64 = base64.b64encode(data).decode("ascii")
+        return json_response({
+            "audio": f"data:{content_type or 'audio/wav'};base64,{b64}",
+            "name": name,
+            "cached": os.path.isfile(cache_file),
+            "size": len(data),
+        })
     return handler
 
 

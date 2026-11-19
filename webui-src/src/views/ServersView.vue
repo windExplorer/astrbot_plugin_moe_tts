@@ -4,9 +4,15 @@ import {
   Server as ServerIcon, Plus, Trash2, Check, Radio, RefreshCw,
   Cpu, MemoryStick, X, Zap, Activity, Pencil,
 } from "lucide-vue-next";
+import BaseSelect from "../components/BaseSelect.vue";
 import { apiGet, apiPost } from "../api";
 import type { Server } from "../api";
 import { toast } from "../toast";
+
+const TYPE_OPTIONS = [
+  { value: "taskhub", label: "TaskHub 中转站（推荐，队列调度）" },
+  { value: "tts_serve", label: "tts_serve 网关（支持 ASR / 管理）" },
+];
 
 const servers = ref<Server[]>([]);
 const activeIndex = ref(0);
@@ -164,10 +170,7 @@ async function vram(action: "load" | "unload") {
         <div class="stack">
           <div class="field"><label class="field-label">名称</label><input v-model="form.name" class="input" placeholder="如：家里中转站" /></div>
           <div class="field"><label class="field-label">类型</label>
-            <select v-model="form.type" class="select">
-              <option value="taskhub">TaskHub 中转站（推荐，队列调度）</option>
-              <option value="tts_serve">tts_serve 网关（支持 ASR / 管理）</option>
-            </select>
+            <BaseSelect v-model="form.type" :options="TYPE_OPTIONS" />
           </div>
           <div class="field"><label class="field-label">服务地址</label><input v-model="form.url" class="input" placeholder="http://127.0.0.1:9000" /></div>
           <div class="field"><label class="field-label">超时（秒）</label><input v-model.number="form.timeout" type="number" class="input" /></div>

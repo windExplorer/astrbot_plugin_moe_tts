@@ -117,6 +117,10 @@ class BaseAdapter:
     ) -> SynthResult:
         raise NotImplementedError
 
+    async def voice_audio(self, name: str) -> tuple[bytes, str] | None:
+        """取音色的原始参考音频（用于试听，不走 TTS 合成）。返回 (bytes, content_type)。"""
+        return None
+
     # ---- 管理 API（仅 tts_serve 支持，基类默认抛错）----
     async def status(self) -> dict:
         raise TTSError("当前服务端类型不支持管理接口", code=0)
@@ -211,6 +215,19 @@ class TaskHubAdapter(BaseAdapter):
             logger.warning(f"[moe_tts] TaskHub 读取音色失败: {e}")
             return []
 
+    async def voice_audio(self, name: str) -> tuple[bytes, str] | None:
+        """经 TaskHub 的 /voices/{name}/audio 代理取上游参考音频。"""
+        from urllib.parse import quote
+        try:
+            async with self._client(timeout=20.0) as client:
+                r = await client.get(
+                    self.base_url + "/voices/" + quote(name, safe="") + "/audio")
+                if r.status_code == 200 and r.content:
+                    return r.content, r.headers.get("content-type", "audio/wav")
+        except Exception as e:  # noqa: BLE001
+            logger.debug(f"[moe_tts] TaskHub 取参考音频失败 {name}: {e}")
+        return None
+
     async def synth(
         self, text, *, voice="", prompt_text="", prompt_wav=None, generation=None
     ) -> SynthResult:
@@ -257,6 +274,19 @@ class TtsServeAdapter(BaseAdapter):
         except Exception as e:
             logger.warning(f"[moe_tts] tts_serve 读取音色失败: {e}")
             return []
+
+    async def voice_audio(self, name: str) -> tuple[bytes, str] | None:
+        """直连 tts_serve 的 /api/voices/{name}/audio 取参考音频。"""
+        from urllib.parse import quote
+        try:
+            async with self._client(timeout=20.0) as client:
+                r = await client.get(
+                    self.base_url + "/api/voices/" + quote(name, safe="") + "/audio")
+                if r.status_code == 200 and r.content:
+                    return r.content, r.headers.get("content-type", "audio/wav")
+        except Exception as e:  # noqa: BLE001
+            logger.debug(f"[moe_tts] tts_serve 取参考音频失败 {name}: {e}")
+        return None
 
     async def synth(
         self, text, *, voice="", prompt_text="", prompt_wav=None, generation=None

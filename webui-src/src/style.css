@@ -189,9 +189,17 @@ body {
 
 .main { flex: 1; min-width: 0; padding: 26px 30px 60px; max-width: 1280px; }
 
-.page-head { margin-bottom: 22px; }
+/* 页面标题区：随页面滚动固定在顶部（负 margin 让毛玻璃铺满 main 宽度） */
+.page-head {
+  position: sticky; top: 0; z-index: 20;
+  margin: -26px -30px 22px; padding: 20px 30px 16px;
+  background: linear-gradient(180deg, var(--bg) 72%, transparent);
+  backdrop-filter: blur(10px);
+}
 .page-title { font-size: 25px; font-weight: 800; letter-spacing: .5px; margin: 0; }
 .page-desc { color: var(--muted); font-size: 13px; margin-top: 6px; }
+/* 页面内工具栏（搜索/同步/筛选）跟随标题固定在下方 */
+.toolbar-sticky { position: sticky; top: 88px; z-index: 15; background: var(--surface-solid); }
 
 /* ============ 卡片 ============ */
 .card {
@@ -358,6 +366,8 @@ body {
 @media (max-width: 900px) {
   .sidebar { display: none; }
   .main { padding: 20px 16px 100px; max-width: 100%; }
+  .page-head { margin: -20px -16px 18px; padding: 16px 16px 12px; }
+  .toolbar-sticky { top: 82px; }
   .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
   .page-title { font-size: 22px; }
   .mobile-nav {

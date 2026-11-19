@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref, computed } from "vue";
 import { SlidersHorizontal, Info, Save, RotateCcw, Server, Mic2 } from "lucide-vue-next";
+import BaseSelect from "../components/BaseSelect.vue";
 import { apiGet, apiPost } from "../api";
 import { toast } from "../toast";
 
@@ -25,6 +26,21 @@ const labels: Record<string, string> = {
   tts_max_retry: "失败重试次数", tts_retry_backoff: "重试退避基数", tts_cooldown_sec: "失败冷却时长",
   contacts_sync_interval_min: "联系人同步间隔（分钟）", contacts_sync_timeout_sec: "联系人同步超时（秒）",
 };
+// 枚举值的中文展示（key -> {英文值: 中文label}）
+const optionLabels: Record<string, Record<string, string>> = {
+  send_mode: { both: "语音 + 文字", voice_only: "仅语音" },
+  tts_scope: { llm_only: "仅大模型回复", all_text: "所有文本" },
+  effect_intensity: { light: "轻量（每句≤1）", medium: "中等（每句≤3）", strong: "密集（每句≤5）" },
+};
+function optionsFor(key: string): { value: string; label: string }[] {
+  const opts = schOptions(key);
+  return opts.map((v) => ({ value: String(v), label: optionLabels[key]?.[String(v)] || String(v) }));
+}
+function schOptions(key: string): any[] {
+  const o = schema.value[key]?.options;
+  return Array.isArray(o) ? o : [];
+}
+
 const hints: Record<string, string> = {
   timeout: "TaskHub 建议 ≥250s（排队120+推理120）；直连网关可按需调小",
   tts_queue_max_position: "排队位置超过此值直接回退文字，0=不限制",
@@ -148,10 +164,8 @@ function reset() { config.value = JSON.parse(JSON.stringify(original.value)); to
             </template>
 
             <!-- options 下拉 -->
-            <template v-else-if="Array.isArray(sch(key).options)">
-              <select v-model="config[key]" class="select" style="margin-top:6px">
-                <option v-for="o in sch(key).options" :key="o" :value="o">{{ o }}</option>
-              </select>
+            <template v-else-if="schOptions(key).length">
+              <div style="margin-top:6px"><BaseSelect v-model="config[key]" :options="optionsFor(key)" /></div>
             </template>
 
             <!-- 数字 -->

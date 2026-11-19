@@ -3,7 +3,7 @@ import { computed, onMounted, onUnmounted, ref } from "vue";
 import {
   AudioLines, LayoutDashboard, Mic2, MessagesSquare, FlaskConical,
   Server, ScrollText, SlidersHorizontal, Radio, X, CheckCircle2, AlertCircle, Info,
-  Sun, Moon,
+  Sun, Moon, CircleHelp,
 } from "lucide-vue-next";
 import { toasts } from "./toast";
 import { PLUGIN_VERSION } from "./version";
@@ -14,6 +14,7 @@ import LabView from "./views/LabView.vue";
 import ServersView from "./views/ServersView.vue";
 import LogsView from "./views/LogsView.vue";
 import ConfigView from "./views/ConfigView.vue";
+import HelpView from "./views/HelpView.vue";
 
 const routes = [
   { key: "overview", label: "总览", icon: LayoutDashboard, comp: OverviewView },
@@ -23,6 +24,7 @@ const routes = [
   { key: "servers", label: "服务端", icon: Server, comp: ServersView },
   { key: "logs", label: "任务日志", icon: ScrollText, comp: LogsView },
   { key: "config", label: "配置", icon: SlidersHorizontal, comp: ConfigView },
+  { key: "help", label: "帮助", icon: CircleHelp, comp: HelpView },
 ];
 
 const current = ref("overview");
@@ -36,6 +38,7 @@ const desc: Record<string, string> = {
   servers: "配置服务端地址，切换 TaskHub 中转站 / tts_serve 网关",
   logs: "查看合成任务历史与成功/失败统计",
   config: "查看与修改插件配置，保存后立即生效并写回 AstrBot",
+  help: "指令、触发方式、LLM 工具与功能说明",
 };
 
 // 主题：dark / light，持久化到 localStorage

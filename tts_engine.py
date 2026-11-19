@@ -185,13 +185,22 @@ class TtsEngine:
         )
 
     def _markup_segment(self, seg: str, voice_info: dict | None) -> str:
-        """逐段注入副语言标记（音色 markup=false 时跳过）。"""
+        """逐段注入副语言标记（音色 markup=false 时跳过）。
+
+        注意：Qwen3-TTS 不支持 [breath]/[laughter] 这类标记，会把它们当普通
+        文本念成英文单词；只有 CosyVoice3 的 tokenizer 把它们注册为 special
+        token 才能生效。因此两个开关默认均为 false，缺键也按 false 处理。
+        """
         if voice_info and voice_info.get("markup") is False:
             return seg
         cfg = self.config
-        out = inject_breath(seg, bool(cfg.get("auto_breath", True)))
-        out = inject_effects(out, bool(cfg.get("auto_effect", False)),
-                            str(cfg.get("effect_intensity", "medium")))
+        # 缺键兜底用 False（与 _conf_schema.json 默认值一致）：主力 Qwen3 下绝不误注入
+        breath = bool(cfg.get("auto_breath", False))
+        effect = bool(cfg.get("auto_effect", False))
+        if not breath and not effect:
+            return seg
+        out = inject_breath(seg, breath)
+        out = inject_effects(out, effect, str(cfg.get("effect_intensity", "medium")))
         return out
 
     def _generation_params(self) -> dict:

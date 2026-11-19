@@ -88,6 +88,19 @@ def main():
     check("头像 id 群取群号", g["group_id"] == "123456")
     check("头像 id 私聊取 QQ", f["user_id"] == "10001")
 
+    print("== 标记开关默认关闭（Qwen3 不支持标记）==")
+    import json as _j
+    _schema = _j.load(open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                                        "_conf_schema.json"), "r", encoding="utf-8"))
+    check("auto_breath schema 默认 false", _schema["auto_breath"]["default"] is False)
+    check("auto_effect schema 默认 false", _schema["auto_effect"]["default"] is False)
+
+    print("== 参考音频接口（试听走文件非克隆）==")
+    from server import TaskHubAdapter, TtsServeAdapter, ServerSpec, BaseAdapter
+    check("TaskHub 有 voice_audio", callable(TaskHubAdapter.voice_audio))
+    check("tts_serve 有 voice_audio", callable(TtsServeAdapter.voice_audio))
+    check("基类 voice_audio 可调用", callable(BaseAdapter.voice_audio))
+
     print("== PCM -> WAV ==")
     wav = pcm_to_wav(b"\x00\x00" * 24000, sample_rate=24000)
     check("WAV 头", wav[:4] == b"RIFF" and wav[8:12] == b"WAVE")

@@ -141,13 +141,15 @@
   "auto_breath": {
     "type": "bool",
     "title": "自动标点换气",
-    "description": "句末插 [breath]、句中插 [quick_breath]。",
-    "default": true
+    "description": "句末插 [breath]、句中插 [quick_breath]（仅 CosyVoice3 有效）。",
+    "hint": "重要：主力模型 Qwen3-TTS 不支持此类标记，开启会被念成英文单词，默认关闭。只有后端切到 CosyVoice3 时才建议开启。",
+    "default": false
   },
   "auto_effect": {
     "type": "bool",
     "title": "关键词音效",
-    "description": "按语种词典追加 [laughter]/[sigh] 等标记。",
+    "description": "按语种词典追加 [laughter]/[sigh] 等标记（仅 CosyVoice3 有效）。",
+    "hint": "同自动标点换气：Qwen3-TTS 不支持，开启会把标记当文本念出来。默认关闭，仅 CosyVoice3 可用。",
     "default": false
   },
   "effect_intensity": {

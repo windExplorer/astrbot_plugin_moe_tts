@@ -1,11 +1,19 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { FlaskConical, Play, Download, WandSparkles, Gauge, Layers, Mic, Upload, Square } from "lucide-vue-next";
+import BaseSelect from "../components/BaseSelect.vue";
 import { apiGet, apiPost } from "../api";
 import type { Voice } from "../api";
 import { toast } from "../toast";
 
 const voices = ref<Voice[]>([]);
+const VOICE_OPTIONS = computed(() => [
+  { value: "", label: "默认音色" },
+  ...voices.value.map((v) => ({
+    value: v.name,
+    label: v.name + (v.language ? ` · ${v.language}` : ""),
+  })),
+]);
 const defaultVoice = ref("");
 const text = ref("你好呀，我是萌萌语音。今天天气不错，我们一起出去走走吧！");
 const voice = ref("");
@@ -98,10 +106,7 @@ async function runAsr() {
           </div>
           <div class="field">
             <label class="field-label">选择音色</label>
-            <select v-model="voice" class="select">
-              <option value="">默认音色</option>
-              <option v-for="v in voices" :key="v.name" :value="v.name">{{ v.name }}{{ v.language ? ` · ${v.language}` : '' }}</option>
-            </select>
+            <BaseSelect v-model="voice" :options="VOICE_OPTIONS" />
           </div>
           <div class="row wrap">
             <button class="btn btn-primary grow" :disabled="loading" @click="synthesize">

@@ -1,5 +1,16 @@
 # 更新日志
 
+## v0.4.0
+
+WebUI 体验升级：自定义下拉、帮助页、音色试听直取音频、顶部固定。
+
+- **自定义下拉组件**：所有 `<select>`（配置页 effect_intensity/send_mode/tts_scope、语种、音色、服务端类型等）换成自研 `BaseSelect.vue`——玻璃拟态弹层、勾选态、滑入动效、点击外部关闭、移动端友好；枚举值用中文 label 展示（如「语音 + 文字」「仅大模型回复」「轻量/中等/密集」），不再显示 both/medium 这类英文原值。
+- **副语言标记修正**：Qwen3-TTS 不支持 `[breath]/[laughter]`（CosyVoice3 tokenizer 才把它注册为 special token），开启会被念成英文单词。`auto_breath`/`auto_effect` 默认改为 false，引擎缺键兜底也改 false；配置提示与帮助页均注明仅 CosyVoice3 可用。
+- **帮助页**：新增「帮助」页签，列出全部指令（/语音开|关|音色|状态|<文本>）、触发方式、5 个 LLM 工具、七页导览、重要说明（Qwen3 标记、文本不丢失、连通状态、试听说明等）。
+- **音色试听改直取音频**：点击音色直接取服务端**参考音频文件**播放（本地缓存 `data/voice_previews/`，缓存命中秒开），不再走 TTS 克隆、不占 GPU；删掉顶部「试听文本」输入。克隆合成放到合成实验室。服务端侧：TaskHub 新增 `GET /voices/{name}/audio` 代理上游 tts_serve 的 `/api/voices/{name}/audio`（需重启 TaskHub）；插件两种服务端类型都实现了 voice_audio()。
+- **顶部固定**：页面标题区 sticky 固定在顶部（毛玻璃背景），音色库/会话页工具栏 sticky 固定在标题下方，滚动时不再跟着跑。
+- 自检 core 97 + webui 41 + hooks 7 项全过；TaskHub 改动单独语法验证通过。
+
 ## v0.3.5
 
 修复 WebUI 配置项全空、保存后仍为空的严重 bug。

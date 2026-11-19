@@ -508,8 +508,10 @@ class MoeTtsPlugin(Star):
                 else:
                     await self._realtime_send(event, [Comp.Record(file=path, url=path)])
                 self.engine.cleanup_file(path, delay=600)
-            # 括号内容单独补发（voice_only / 不合并 both 时文字被剥离，保证可见）
-            if res.brackets and not text_in_chain:
+            # 括号内容单独补发：仅 voice_only 模式需要。
+            # both 模式下正文补发的是完整原文（含括号），再补发会重复；
+            # voice_only 模式正文完全不发，才需单独补发让语气描写可见。
+            if res.brackets and send_mode == "voice_only" and not text_in_chain:
                 await self._realtime_send(event, [Comp.Plain(f"（{res.brackets}）")])
         except asyncio.CancelledError:
             logger.info("[moe_tts] 合成任务被新消息取消")
@@ -521,20 +523,16 @@ class MoeTtsPlugin(Star):
     def _seg_text_for(self, full: str, index: int, total: int, cfg: dict) -> str:
         """不合并 both 时文字如何随语音逐段发。
 
-        括号内容必须和语音一致地剥离：语音侧 _prepare_text 已 strip_brackets，
-        括号由 _do_tts 末尾统一补发一次。这里若把括号留在正文里，就会出现
-        「文字气泡带括号 + 单独补发括号」的重复（真机已复现）。
+        补发的文字是**完整原文**（含括号语气描写），因为 AstrBot 结果链里的
+        原文已被移除，这里必须把文本原样补回，遵守「文本绝不丢失」红线。
+        语音侧才按 skip_bracket_tts 剥离括号（只读正文），两者口径不同是有意的：
+        文字看到「（迷迷糊糊，声音很轻）\\n吃的什么。」全文，耳朵只听「吃的什么。」。
         """
-        skip = bool(cfg.get("skip_bracket_tts", True))
-
-        def clean(t: str) -> str:
-            return textutil_mod.strip_brackets(t) if skip else t
-
         if total <= 1:
-            return clean(full)
+            return full
         segs = self.engine._segment(full)
         if index < len(segs):
-            return clean(segs[index])
+            return segs[index]
         return ""
 
     async def _realtime_send(self, event, chain) -> bool:

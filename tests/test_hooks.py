@@ -142,30 +142,42 @@ def main():
           rsend is not None and has_send and has_wrap,
           f"send={has_send} wrap={has_wrap}")
 
-    # 守卫「补发正文不重复带括号」：
-    # 单段时曾直接 return full，导致文字气泡带括号 + 括号又单独补发一次
-    import sys as _sys
-    _sys.path.insert(0, ROOT)
-    import textutil as _tu
+    # 守卫「补发正文保留完整原文」：
+    # 文字气泡必须显示完整原文（含括号语气描写，括号在前、正文在后），
+    # 语音侧才剥括号。曾错误地在单段时剥括号，导致顺序变成「正文+括号」两条。
     seg_fn = extract_methods(src, ["_seg_text_for"]).get("_seg_text_for")
     check("抠到 _seg_text_for", seg_fn is not None)
     if seg_fn:
-        # 给 exec 出来的函数补上它依赖的全局名
-        seg_fn.__globals__["textutil_mod"] = _tu
         class P:
             _seg_text_for = seg_fn
         class Eng:
             def _segment(self, t): return [t]
         p = P(); p.engine = Eng()
-        cfg_on = {"skip_bracket_tts": True}
-        cfg_off = {"skip_bracket_tts": False}
-        raw = "（迷迷糊糊，声音很轻）吃的什么。"
-        one = p._seg_text_for(raw, 0, 1, cfg_on)
-        check("单段补发正文剥离括号", one == "吃的什么。", repr(one))
-        many = p._seg_text_for(raw, 0, 2, cfg_on)
-        check("多段补发正文剥离括号", "迷迷糊糊" not in many, repr(many))
-        keep = p._seg_text_for(raw, 0, 1, cfg_off)
-        check("关闭剥离时保留括号", keep == raw, repr(keep))
+        raw = "（迷迷糊糊，声音很轻）\n吃的什么。"
+        one = p._seg_text_for(raw, 0, 1, {"skip_bracket_tts": True})
+        check("单段补发正文保留原文括号", one == raw, repr(one))
+        many = p._seg_text_for(raw, 0, 2, {"skip_bracket_tts": True})
+        check("多段补发正文保留原文括号", many == raw, repr(many))
+
+    # 守卫「both 模式不单独补发括号」：括号补发条件必须限定 voice_only，
+    # 否则正文（完整原文含括号）+ 括号补发 = 重复两条。
+    import ast as _ast
+    tree = _ast.parse(src)
+    cls = next((n for n in tree.body
+                if isinstance(n, _ast.ClassDef) and n.name == "MoeTtsPlugin"), None)
+    dtts = next((n for n in cls.body if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef))
+                 and n.name == "_do_tts"), None) if cls else None
+    bracket_guarded = False
+    if dtts:
+        for node in _ast.walk(dtts):
+            if isinstance(node, _ast.If):
+                cond = _ast.unparse(node.test)
+                # 找到「括号补发」那个 if：条件里同时出现 brackets / res.brackets
+                body_src = _ast.unparse(node)
+                if "brackets" in cond and "voice_only" in cond:
+                    bracket_guarded = True
+    check("括号补发仅限 voice_only", bracket_guarded,
+          "both 模式正文已含括号，不能再单独补发")
 
     print(f"\nRESULT: PASS={PASS} FAIL={FAIL}")
     return 1 if FAIL else 0

@@ -1,7 +1,7 @@
 name: astrbot_plugin_moe_tts
 display_name: 萌萌语音
 desc: 让机器人用可配置音色开口说话——接入 TaskHub 中转站 / tts_serve 网关，支持极速克隆、ASR 转写、会话级音色与自动语音，带精致 WebUI。
-version: v0.5.4
+version: v0.5.5
 author: windExplorer
 repo: https://github.com/windExplorer/astrbot_plugin_moe_tts
 documentation:

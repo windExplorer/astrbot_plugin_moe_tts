@@ -1,5 +1,16 @@
 # 更新日志
 
+## v0.5.0
+
+音色同步支持语种（language）字段——后端后来补的语种/参考文本，二次同步会自动更新。
+
+- **背景**：tts_serve 的 `voices.json` 新增了 `language` 字段（如 `"language": "zh"`）。此前同步链路会把语种丢掉，导致"后端补了语种，插件同步不到"。
+- **链路改动**（三处配合，tts_serve 代码无需改，`VoicesStore.load()` 用 `dict(value)` 自动透传新字段）：
+  - TaskHub `voices_info()` 增加 `languages: dict[文件名, 语种]` 字段，代理上游时透传（1.3.0）。
+  - 插件两个适配器都解析语种：TaskHub 读 `languages` 映射，tts_serve 直连读条目的 `language` 字段。
+  - `sync_server_voices()` 把语种写入快照；`set_server_voices()` 的策略是「服务端有值就覆盖、没值才保留本地旧值」——所以第一次同步为空、后端补上后第二次同步会更新；你在 WebUI 手打的语种在服务端没有时仍保留。
+- 自检新增语种解析与"二次同步覆盖 text/language、保留本地 markup、移除已删音色"测试，core 104 项全过。
+
 ## v0.4.1
 
 修复会话页操作后列表不自动刷新的问题。

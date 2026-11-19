@@ -179,7 +179,12 @@ class PluginStore:
 
     # ---------- 服务端音色快照 ----------
     def set_server_voices(self, voices: dict[str, dict], *, source_url: str = "") -> None:
-        """整批替换服务端音色快照（同步时调用），保留本地备注字段。"""
+        """整批替换服务端音色快照（同步时调用）。
+
+        策略：服务端有值的字段一律覆盖（含后来补上的 prompt_text / language），
+        只有服务端没提供时才保留本地旧值（language/markup 这类本地标注）。
+        快照里不存在于本次服务端列表的音色会被删除（整批覆盖语义）。
+        """
         import time as _time
         old = self.server_voices.data
         merged: dict[str, dict] = {}

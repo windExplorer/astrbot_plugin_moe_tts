@@ -146,6 +146,17 @@ def main():
     check("文件名做 name/file", tv[0].name == "萌1.wav" and tv[0].file == "萌1.wav")
     check("texts str 值读取", tv[0].text == "今天的晚霞超好看的")
     check("texts 对象值读取 prompt_text", tv[1].text == "我的人生我做主", str(tv[1]))
+    # languages 映射（TaskHub 透传上游 tts_serve 的 language 字段）
+    tv2 = _parse_voices_taskhub({
+        "files": ["达妮娅.mp3"], "texts": {"达妮娅.mp3": "祝你生日快乐"},
+        "languages": {"达妮娅.mp3": "zh"},
+    })
+    check("languages 映射解析语种", tv2[0].language == "zh", str(tv2[0]))
+    check("无 languages 时语种空", tv[0].language == "", str(tv[0]))
+    from server import _parse_voices_ttsserve
+    ts = _parse_voices_ttsserve({"达妮娅.mp3": {"prompt_wav": "达妮娅.mp3",
+        "prompt_text": "祝你生日快乐", "enabled": True, "language": "zh"}})
+    check("tts_serve 直连解析语种", ts[0].language == "zh", str(ts[0]))
     check("空数据返回空", _parse_voices_taskhub({"files": [], "texts": {}}) == [])
     check("dict 变体兼容", len(_parse_voices_taskhub({"files": {"xiaoyu": "xiaoyu.wav"}, "texts": {}})) == 1)
 
@@ -218,6 +229,22 @@ def main():
                             synced_at="2026-01-01 00:00:00", platforms=1)
             snap = st.contacts_snapshot()
             check("联系人快照写入/读取", len(snap["friends"]) == 1 and len(snap["groups"]) == 1)
+
+            # 音色二次同步：后端后来补了 text/language，应覆盖旧快照；本地 markup 保留
+            st.set_server_voices({
+                "萌1.wav": {"name": "萌1.wav", "file": "萌1.wav", "text": "", "language": ""},
+                "旧音色.wav": {"name": "旧音色.wav", "file": "旧音色.wav", "text": "旧", "language": ""},
+            }, source_url="http://old")
+            st.server_voices.data["萌1.wav"]["markup"] = False  # 模拟本地标注
+            st.set_server_voices({"萌1.wav": {"name": "萌1.wav", "file": "萌1.wav",
+                                              "text": "补上的参考文本", "language": "zh"}},
+                                 source_url="http://new")
+            v = st.server_voices.data["萌1.wav"]
+            check("二次同步覆盖 text", v["text"] == "补上的参考文本", str(v))
+            check("二次同步覆盖 language", v["language"] == "zh", str(v))
+            check("二次同步保留本地 markup", v.get("markup") is False, str(v))
+            check("服务端删除的音色被移除",
+                  "旧音色.wav" not in st.server_voices.data)
         except Exception as e:  # noqa: BLE001
             check("ContactsScheduler 构造成功", False, repr(e))
 

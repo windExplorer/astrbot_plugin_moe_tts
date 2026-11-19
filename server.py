@@ -150,23 +150,27 @@ def _text_of(value: Any) -> str:
 def _parse_voices_taskhub(data: Any) -> list[VoiceInfo]:
     """解析 TaskHub /voices。
 
-    TaskHub 原版返回 ``{voices_dir, files: list[str], texts: dict[str,str]}``；
-    我们改造后代理上游 tts_serve 音色，仍是这套结构（files 为文件名列表，
-    texts 按文件名索引）。同时兼容 files 为 dict 的旧/变体格式。
+    TaskHub 返回 ``{voices_dir, files: list[str], texts: dict[str,str],
+    languages: dict[str,str]}``（files 为文件名列表，texts/languages 按文件名索引）。
+    languages 是上游 tts_serve 的语种标注（zh/en/ja 等）；旧版无此字段时按空处理。
+    同时兼容 files 为 dict 的旧/变体格式。
     """
     out: list[VoiceInfo] = []
     if not isinstance(data, dict):
         return out
     files = data.get("files")
     texts = data.get("texts") if isinstance(data.get("texts"), dict) else {}
+    languages = data.get("languages") if isinstance(data.get("languages"), dict) else {}
 
     def add(name: str, file: str) -> None:
         if not name:
             return
+        lang = languages.get(name) or languages.get(file) or ""
         out.append(VoiceInfo(
             name=name,
             file=file or name,
             text=_text_of(texts.get(name) or texts.get(file) or ""),
+            language=str(lang) if isinstance(lang, str) else "",
         ))
 
     if isinstance(files, (list, tuple)):
@@ -185,7 +189,7 @@ def _parse_voices_taskhub(data: Any) -> list[VoiceInfo]:
 
 
 def _parse_voices_ttsserve(data: Any) -> list[VoiceInfo]:
-    """tts_serve /voices: {name: {prompt_wav, prompt_text, enabled}}。"""
+    """tts_serve /voices: {name: {prompt_wav, prompt_text, enabled, language?}}。"""
     out: list[VoiceInfo] = []
     if not isinstance(data, dict):
         return out
@@ -195,6 +199,7 @@ def _parse_voices_ttsserve(data: Any) -> list[VoiceInfo]:
                 name=str(name),
                 file=str(info.get("prompt_wav", "") or ""),
                 text=str(info.get("prompt_text", "") or ""),
+                language=str(info.get("language", "") or ""),
                 enabled=bool(info.get("enabled", True)),
             ))
         elif isinstance(info, str):

@@ -53,7 +53,7 @@ function statusColor() {
               <strong style="font-size:15px">{{ data.server?.name || '未配置服务端' }}</strong>
               <span class="badge" :class="statusColor()">
                 <span class="dot" :class="statusColor()"></span>
-                {{ data.server?.in_cooldown ? '冷却中' : (data.ready ? '在线' : '未就绪') }}
+                {{ !data.ready ? '未连通' : (data.server?.in_cooldown ? '冷却中' : '在线') }}
               </span>
               <span v-if="data.active_type" class="badge brand">{{ data.active_type === 'taskhub' ? 'TaskHub 中转站' : 'tts_serve 网关' }}</span>
             </div>
@@ -61,7 +61,10 @@ function statusColor() {
               {{ data.server?.url || '请在「服务端」页添加一个语音服务端' }}
               <span v-if="data.server"> · {{ data.server.sample_rate }} Hz</span>
             </div>
-            <div v-if="data.server?.last_error" class="row" style="gap:6px;margin-top:6px;color:var(--warn);font-size:12px">
+            <div v-if="data.server?.health_error" class="row" style="gap:6px;margin-top:6px;color:var(--danger);font-size:12px">
+              <AlertTriangle :size="13" /> 连接失败：{{ data.server.health_error.slice(0, 100) }}
+            </div>
+            <div v-else-if="data.server?.last_error" class="row" style="gap:6px;margin-top:6px;color:var(--warn);font-size:12px">
               <AlertTriangle :size="13" /> {{ data.server.last_error.slice(0, 80) }}
             </div>
           </div>

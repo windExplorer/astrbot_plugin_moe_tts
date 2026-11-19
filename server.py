@@ -71,23 +71,35 @@ class BaseAdapter:
         self.sample_rate = sample_rate
         self.timeout = spec.timeout
 
-    def _client(self) -> httpx.AsyncClient:
+    def _client(self, timeout: float | None = None, connect: float = 10.0) -> httpx.AsyncClient:
         return httpx.AsyncClient(
-            timeout=httpx.Timeout(self.timeout, connect=10.0),
+            timeout=httpx.Timeout(timeout if timeout is not None else self.timeout, connect=connect),
             trust_env=False,
             follow_redirects=True,
         )
 
     async def health(self) -> dict:
-        """探测服务健康 + 采样率（采样率以服务为准，覆盖默认值）。"""
+        """探测服务健康 + 采样率（短超时，独立于合成的 250s 读超时）。"""
         try:
-            async with self._client() as client:
+            # 健康检查必须是「秒级」：连不上时 3s 内失败，服务端假死时 6s 内失败，
+            # 否则 WebUI 总览会一直转圈、且把「没连通」误显示成「在线」。
+            async with self._client(timeout=6.0, connect=3.0) as client:
                 r = await client.get(self.base_url + "/")
                 r.raise_for_status()
-                data = r.json() if "json" in r.headers.get("content-type", "") else {}
+                content_type = r.headers.get("content-type", "")
+                if "json" in content_type:
+                    data = r.json()
+                else:
+                    # 非 JSON 响应也算「HTTP 层连通」，但不解析采样率
+                    data = {}
                 if isinstance(data, dict) and data.get("sample_rate"):
                     self.sample_rate = int(data["sample_rate"])
-                return {"ok": True, "data": data, "sample_rate": self.sample_rate}
+                return {
+                    "ok": True,
+                    "data": data,
+                    "sample_rate": self.sample_rate,
+                    "status_code": r.status_code,
+                }
         except Exception as e:
             return {"ok": False, "error": str(e), "sample_rate": self.sample_rate}
 

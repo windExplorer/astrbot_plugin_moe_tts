@@ -83,17 +83,27 @@ def _overview(plugin):
         events = plugin.store.recent_events()
         ok_n = sum(1 for e in events if e.get("ok"))
         active = router.active
+        # 真实连通性探测：不能用「配置了服务端」当作「服务端在线」。
+        # health() 用 3s 连接 / 6s 读的短超时，连不上会快速失败而不是卡住页面。
+        health: dict = {"ok": False, "error": "未配置服务端"}
+        if router.adapter is not None:
+            try:
+                health = await router.adapter.health()
+            except Exception as e:  # noqa: BLE001
+                health = {"ok": False, "error": str(e)}
         try:
             voices = await plugin.engine.voices()
         except Exception:
             voices = []
         return json_response({
-            "ready": active is not None,
+            "ready": bool(health.get("ok")),
             "server": {
                 "name": active.name if active else "",
                 "type": active.type if active else "",
                 "url": active.url if active else "",
-                "sample_rate": getattr(router.adapter, "sample_rate", 24000) if router.adapter else 24000,
+                "online": bool(health.get("ok")),
+                "health_error": str(health.get("error") or ""),
+                "sample_rate": health.get("sample_rate", 24000) or 24000,
                 "cooldown_remaining": round(router.cooldown_remaining, 1),
                 "in_cooldown": router.in_cooldown,
                 "last_error": router.last_error,

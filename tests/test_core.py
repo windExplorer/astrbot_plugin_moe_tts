@@ -135,6 +135,47 @@ def main():
     check("tts_serve 支持 ASR", callable(r.adapter.asr))
     check("冷却初始 False", not r.in_cooldown)
 
+    print("== 服务端连通探测（真实 HTTP）==")
+    import asyncio
+    import json as _json
+    import threading
+    import time as _time
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+    from server import ServerSpec, TaskHubAdapter
+
+    class _H(BaseHTTPRequestHandler):
+        def do_GET(self):
+            body = _json.dumps({"status": "ok", "sample_rate": 16000}).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+        def log_message(self, *a):
+            pass
+
+    srv = HTTPServer(("127.0.0.1", 0), _H)
+    port = srv.server_address[1]
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+
+    async def _probe():
+        good = TaskHubAdapter(ServerSpec(name="ok", type="taskhub",
+                                         url=f"http://127.0.0.1:{port}"))
+        h = await good.health()
+        check("在线服务探测 ok", h.get("ok") is True, str(h))
+        check("采样率从服务读取", h.get("sample_rate") == 16000, str(h))
+        # 一个几乎肯定连不上的本地端口（存活服务不会监听），必须快速失败
+        bad = TaskHubAdapter(ServerSpec(name="bad", type="taskhub",
+                                        url="http://127.0.0.1:1"))
+        t0 = _time.monotonic()
+        hb = await bad.health()
+        elapsed = _time.monotonic() - t0
+        check("失联服务探测 fail", hb.get("ok") is False, str(hb))
+        check("失联快速失败(<8s)", elapsed < 8.0, f"耗时 {elapsed:.1f}s")
+
+    asyncio.run(_probe())
+    srv.shutdown()
+
     print(f"\nRESULT: PASS={PASS} FAIL={FAIL}")
     return 1 if FAIL else 0
 

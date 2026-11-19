@@ -18,6 +18,8 @@ export default defineConfig({
     emptyOutDir: true,
     chunkSizeWarningLimit: 4000,
     cssCodeSplit: false,
+    // Logo 内联成 base64，保持 pages 产物只有一个 JS（不依赖额外图片请求）
+    assetsInlineLimit: 1024 * 1024,
     rollupOptions: { output: { inlineDynamicImports: true } },
   },
   server: { port: 5188, proxy: {} },

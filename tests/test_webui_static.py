@@ -41,9 +41,13 @@ def main():
     check("assets 仅一个 JS（单文件产物）", len(js_files) == 1, str(js_files))
     check("无 CSS 外链（已注入 JS）", ".css" not in html)
 
+    # 插件 Logo：根目录 logo.png（AstrBot 插件列表认这个固定文件名），且已内联进 JS
+    check("插件根目录有 logo.png", os.path.isfile(os.path.join(ROOT, "logo.png")))
+
     # JS 里含所有页面关键文案（确认源码已编进产物）
     if js_files:
         js = open(os.path.join(assets_dir, js_files[0]), "r", encoding="utf-8").read()
+        check("Logo 已内联进 JS（单文件产物）", "data:image/png;base64" in js)
         for token in ["总览", "音色库", "会话管理", "合成实验室", "服务端", "任务日志", "萌萌语音",
                       "分段试算", "极速克隆", "浅色主题", "深色主题", "从服务端同步", "保存更改",
                       "群聊", "私聊", "刷新头像", "刚刚", "同步列表", "联系人快照", "未启用",

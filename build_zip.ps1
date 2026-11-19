@@ -52,6 +52,7 @@ $includeList = @(
     "webapi.py",
     "_conf_schema.json",
     "metadata.yaml",
+    "logo.png",
     "README.md",
     "CHANGELOG.md",
     "docs",

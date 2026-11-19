@@ -1,5 +1,14 @@
 # 更新日志
 
+## v0.5.6
+
+加上萌系 Logo（用户提供图片），插件列表与 WebUI 统一形象。
+
+- **插件 Logo**：根目录新增 `logo.png`（256×256，粉紫马卡龙色 Q 版小女孩 + 耳机 + 麦克风，双揪揪、大眼睛）。AstrBot 4.29.4 只认插件根目录固定文件名 `logo.png`，会自动在插件列表显示。
+- **WebUI 品牌图标**：侧边栏原先的 AudioLines 图标换成同一张 logo，尺寸加大到 48px。
+- **单文件产物保持**：Vite 配置 `assetsInlineLimit` 提到 1MB，logo 内联成 base64 进 JS，pages/ 产物仍只有一个 JS（371KB），无额外图片请求。
+- **打包清单**：`build_zip.ps1` 加入 `logo.png`；WebUI 守卫新增"根目录有 logo.png"和"Logo 已内联进 JS"两项。自检 core 104 + webui 43 项全过。
+
 ## v0.5.5
 
 修正 v0.5.4 的括号处理方式：文字气泡恢复显示完整原文，顺序为「括号描写在前、正文在后」。

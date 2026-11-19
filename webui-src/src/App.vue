@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import {
-  AudioLines, LayoutDashboard, Mic2, MessagesSquare, FlaskConical,
+  LayoutDashboard, Mic2, MessagesSquare, FlaskConical,
   Server, ScrollText, SlidersHorizontal, Radio, X, CheckCircle2, AlertCircle, Info,
   Sun, Moon, CircleHelp,
 } from "lucide-vue-next";
+import logoUrl from "./assets/logo.png";
 import { toasts } from "./toast";
 import { PLUGIN_VERSION } from "./version";
 import OverviewView from "./views/OverviewView.vue";
@@ -88,7 +89,7 @@ const toastIcon = { ok: CheckCircle2, err: AlertCircle, info: Info };
     <!-- 侧边栏 -->
     <aside class="sidebar">
       <div class="brand">
-        <div class="brand-logo"><AudioLines :size="22" :stroke-width="2.4" /></div>
+        <div class="brand-logo"><img :src="logoUrl" alt="萌萌语音" /></div>
         <div>
           <div class="brand-title">萌萌语音</div>
           <div class="brand-sub">Moe TTS Console</div>

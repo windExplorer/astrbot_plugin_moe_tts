@@ -60,6 +60,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\build_zip.ps1     # 打包
 ```powershell
 uv run --no-project --python 3.12 --with httpx python tests/test_core.py
 uv run --no-project --python 3.12 python tests/test_webui_static.py
+uv run --no-project --python 3.12 python tests/test_hooks.py
 ```
 
 ## 目录结构

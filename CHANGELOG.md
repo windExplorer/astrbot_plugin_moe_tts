@@ -1,5 +1,14 @@
 # 更新日志
 
+## v0.3.3
+
+修复 v0.3.2 的消息处理崩溃 bug。
+
+- **现象**：每条消息进入 LLM 回复钩子时抛 `TypeError: _flag() missing 1 required positional argument: 'key'`，语音功能整体不可用。
+- **根因**：初版 `_flag(self, event, key)` 定义里带了一个多余的 `key` 参数，而所有调用处（ `_set_flag`/`_get_flag` ）只传 `event`。这是方法签名与调用不一致的遗留 bug，之前的自检只测独立的纯函数、从没驱动过钩子辅助方法，所以一直漏检。
+- **修复**：`_flag(self, event)` 去掉多余参数。
+- **防再发**：新增 `tests/test_hooks.py`——用 AST 从 `main.py` 原样抠出 `_flag`/`_set_flag`/`_get_flag`/`_clear` 到假类上执行，用假 event 驱动真实调用链；已验证旧签名会被该测试准确捕获。另用 AST 扫描全部后端模块的 self 方法调用，无其它同类问题。
+
 ## v0.3.2
 
 修复三个使用问题（路由 / 音色同步 / 按钮样式）：

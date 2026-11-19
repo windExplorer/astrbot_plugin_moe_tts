@@ -231,7 +231,7 @@ class MoeTtsPlugin(Star):
         return self.config
 
     # ---------- 事件标记 ----------
-    def _flag(self, event, key: str) -> dict:
+    def _flag(self, event) -> dict:
         mid = getattr(event, "message_id", "") or id(event)
         return self._flags.setdefault(str(mid), {})
 

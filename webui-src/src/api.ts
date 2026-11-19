@@ -56,10 +56,12 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 }
 
 function normalize(payload: any): any {
-  if (payload && typeof payload === "object" && "success" in payload) {
-    if (payload.success === false) throw new Error(payload.error || "请求失败");
-    return payload.data !== undefined ? payload.data : payload;
-  }
+  if (!payload || typeof payload !== "object") return payload;
+  // AstrBot error_response() 信封：{status: "error", message, data}
+  if (payload.status === "error") throw new Error(payload.message || payload.error || "请求失败");
+  // 部分桥接版本的 {success: false, error} 信封
+  if ("success" in payload && payload.success === false) throw new Error(payload.error || "请求失败");
+  if ("success" in payload) return payload.data !== undefined ? payload.data : payload;
   return payload;
 }
 

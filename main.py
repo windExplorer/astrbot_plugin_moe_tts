@@ -118,6 +118,7 @@ class MoeTtsPlugin(Star):
         # 每消息标记（防重复 / 关键词触发 / 音色覆盖）
         self._flags: dict[str, dict] = {}
         self._last_llm: dict[str, tuple[float, str]] = {}
+        self._last_user_msg: dict[str, tuple[float, str]] = {}  # 用户原消息（按会话，跨钩子抑制判定）
         self._spoken_msgs: set = set()
         self._sent_texts: dict[str, float] = {}
         self._origin_tasks: dict[str, asyncio.Task] = {}
@@ -307,7 +308,7 @@ class MoeTtsPlugin(Star):
         msg = textutil_mod.clean_tts_text(event.message_str or "")
         if cfg.get("enable_user_trigger", True):
             if msg:
-                self._last_llm.setdefault("__user__", (time.time(), msg))
+                self._last_user_msg[event.unified_msg_origin] = (time.time(), msg)
             if any(kw and kw in msg for kw in (cfg.get("trigger_keywords") or [])):
                 self._set_flag(event, "want", True)
             if any(kw and kw in msg for kw in (cfg.get("text_keywords") or [])):
@@ -322,8 +323,9 @@ class MoeTtsPlugin(Star):
         origin = event.unified_msg_origin
         self._remember_names(event, origin)
 
-        # 用户「用文字回复」关键词（跨钩子兜底）
-        user_msg = self._last_llm.get("__user__", (0, ""))[1]
+        # 用户「用文字回复」关键词（跨钩子兜底，按会话取，避免并发串台）
+        ut = self._last_user_msg.get(origin)
+        user_msg = ut[1] if ut and time.time() - ut[0] <= LAST_LLM_TTL else ""
         if cfg.get("enable_user_trigger", True) and user_msg:
             if any(kw and kw in user_msg for kw in (cfg.get("text_keywords") or [])):
                 self._set_flag(event, "suppress", True)

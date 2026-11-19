@@ -1,5 +1,12 @@
 # 更新日志
 
+## v0.1.1
+
+发布前的代码审查（对照 AstrBot 4.29.4 源码）修掉两处隐患：
+
+- **WebUI 错误处理**：`astrbot.api.web.error_response()` 返回 `{status:"error", message, data}` 信封，前端 `normalize()` 原先只认 `{success:false}`，导致后端错误（如合成失败、服务端不可用）被当成正常数据静默吞掉。现在两种信封都识别并抛出异常，页面能正确 toast 报错。
+- **多会话串台**：用户「用文字回复」的原消息原先存在全局单键 `_last_llm["__user__"]`，多个会话并发时互相覆盖，可能让 B 会话被 A 会话的文字请求误 suppress。改为按 `unified_msg_origin` 存储并带 TTL 时效校验。
+
 ## v0.1.0
 
 全新插件「萌萌语音」，独立于旧 `astrbot_plugin_cosyvoice` 重写。

@@ -142,6 +142,31 @@ def main():
           rsend is not None and has_send and has_wrap,
           f"send={has_send} wrap={has_wrap}")
 
+    # 守卫「补发正文不重复带括号」：
+    # 单段时曾直接 return full，导致文字气泡带括号 + 括号又单独补发一次
+    import sys as _sys
+    _sys.path.insert(0, ROOT)
+    import textutil as _tu
+    seg_fn = extract_methods(src, ["_seg_text_for"]).get("_seg_text_for")
+    check("抠到 _seg_text_for", seg_fn is not None)
+    if seg_fn:
+        # 给 exec 出来的函数补上它依赖的全局名
+        seg_fn.__globals__["textutil_mod"] = _tu
+        class P:
+            _seg_text_for = seg_fn
+        class Eng:
+            def _segment(self, t): return [t]
+        p = P(); p.engine = Eng()
+        cfg_on = {"skip_bracket_tts": True}
+        cfg_off = {"skip_bracket_tts": False}
+        raw = "（迷迷糊糊，声音很轻）吃的什么。"
+        one = p._seg_text_for(raw, 0, 1, cfg_on)
+        check("单段补发正文剥离括号", one == "吃的什么。", repr(one))
+        many = p._seg_text_for(raw, 0, 2, cfg_on)
+        check("多段补发正文剥离括号", "迷迷糊糊" not in many, repr(many))
+        keep = p._seg_text_for(raw, 0, 1, cfg_off)
+        check("关闭剥离时保留括号", keep == raw, repr(keep))
+
     print(f"\nRESULT: PASS={PASS} FAIL={FAIL}")
     return 1 if FAIL else 0
 

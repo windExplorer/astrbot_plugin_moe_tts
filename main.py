@@ -519,12 +519,22 @@ class MoeTtsPlugin(Star):
                 await self._realtime_send(event, [Comp.Plain(full)])
 
     def _seg_text_for(self, full: str, index: int, total: int, cfg: dict) -> str:
-        """不合并 both 时文字如何随语音逐段发。简化：单段发全文，多段按标点近似切。"""
+        """不合并 both 时文字如何随语音逐段发。
+
+        括号内容必须和语音一致地剥离：语音侧 _prepare_text 已 strip_brackets，
+        括号由 _do_tts 末尾统一补发一次。这里若把括号留在正文里，就会出现
+        「文字气泡带括号 + 单独补发括号」的重复（真机已复现）。
+        """
+        skip = bool(cfg.get("skip_bracket_tts", True))
+
+        def clean(t: str) -> str:
+            return textutil_mod.strip_brackets(t) if skip else t
+
         if total <= 1:
-            return full
+            return clean(full)
         segs = self.engine._segment(full)
         if index < len(segs):
-            return textutil_mod.strip_brackets(segs[index]) if cfg.get("skip_bracket_tts", True) else segs[index]
+            return clean(segs[index])
         return ""
 
     async def _realtime_send(self, event, chain) -> bool:

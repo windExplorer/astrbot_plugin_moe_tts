@@ -182,12 +182,24 @@ function activeText(ts: number): string {
   return `${dt.getMonth() + 1}/${dt.getDate()}`;
 }
 
+// 把改动写回源数据 rawSessions，让 sessions computed 立即重算刷新列表。
+// 注意 s 可能来自 computed 生成的临时对象，直接改它不会反映到列表。
+function upsertLocalSession(s: SessionFull, changes: Partial<SessionFull>) {
+  const idx = rawSessions.value.findIndex((x) => x.origin === s.origin);
+  const base: SessionFull = idx >= 0 ? rawSessions.value[idx] : { ...s };
+  const next: SessionFull = { ...base, ...changes, has_state: true,
+    updated: new Date().toLocaleString("zh-CN", { hour12: false }) };
+  if (idx >= 0) rawSessions.value[idx] = next;
+  else rawSessions.value.push(next);
+  return next;
+}
+
 async function toggle(s: SessionFull) {
+  const newOn = !s.on;
   try {
-    await apiPost("sessions/set", { origin: s.origin, on: !s.on });
-    s.on = !s.on;
-    s.has_state = true;
-    toast(s.on ? `已开启「${displayName(s)}」的语音` : "已关闭语音", "ok");
+    await apiPost("sessions/set", { origin: s.origin, on: newOn });
+    upsertLocalSession(s, { on: newOn });
+    toast(newOn ? `已开启「${displayName(s)}」的语音` : "已关闭语音", "ok");
   } catch (e: any) { toast(e?.message || "操作失败", "err"); }
 }
 async function remove(s: SessionFull) {
@@ -208,8 +220,12 @@ async function saveEdit() {
   try {
     await apiPost("sessions/set", { origin: s.origin, voice: s.voice, send_mode: s.send_mode,
       on: s.on, nickname: s.nickname, group_name: s.group_name });
+    // 立即写回源数据刷新列表，同时显示名/音色/开关等就地更新
+    upsertLocalSession(s, {
+      on: s.on, voice: s.voice, send_mode: s.send_mode,
+      nickname: s.nickname, group_name: s.group_name,
+    });
     editing.value = null;
-    await load();
     toast("已保存", "ok");
   } catch (e: any) { toast(e?.message || "保存失败", "err"); }
 }

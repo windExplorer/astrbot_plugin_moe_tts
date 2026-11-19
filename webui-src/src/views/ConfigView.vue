@@ -1,15 +1,17 @@
 <script setup lang="ts">
 import { onMounted, ref, computed } from "vue";
-import { SlidersHorizontal, Info, ExternalLink, Languages } from "lucide-vue-next";
+import { SlidersHorizontal, Info, Save, RotateCcw, Server, Mic2 } from "lucide-vue-next";
 import { apiGet, apiPost } from "../api";
 import { toast } from "../toast";
 
 const config = ref<Record<string, any>>({});
+const original = ref<Record<string, any>>({});
 const groups = ref<Record<string, string[]>>({});
+const schema = ref<Record<string, any>>({});
 const loading = ref(true);
+const saving = ref(false);
 const keyword = ref("");
 
-// 漂亮的键名映射
 const labels: Record<string, string> = {
   servers: "服务端列表", timeout: "请求超时（秒）", tts_queue_max_position: "排队阈值",
   fast_clone: "极速克隆", default_voice: "默认音色", voices: "音色备注",
@@ -22,6 +24,14 @@ const labels: Record<string, string> = {
   segment_merge: "分段合并发送", max_text_len: "单段硬上限", tts_concurrency: "合成并发数",
   tts_max_retry: "失败重试次数", tts_retry_backoff: "重试退避基数", tts_cooldown_sec: "失败冷却时长",
 };
+const hints: Record<string, string> = {
+  timeout: "TaskHub 建议 ≥250s（排队120+推理120）；直连网关可按需调小",
+  tts_queue_max_position: "排队位置超过此值直接回退文字，0=不限制",
+  segment_len: "格式「最小,最大」，如 30,50；0=关闭",
+  segment_first_len: "首段独立窗口，让首句更快出声；0=沿用分段字数",
+  tts_cooldown_sec: "服务端失败后多久内只发文字、不打服务端",
+  tts_concurrency: "同时打到服务端的请求数，中转站保持 1 即可",
+};
 
 const filteredGroups = computed(() => {
   const k = keyword.value.trim().toLowerCase();
@@ -32,62 +42,135 @@ const filteredGroups = computed(() => {
   }
   return result;
 });
+const dirty = computed(() => JSON.stringify(config.value) !== JSON.stringify(original.value));
 
-function displayValue(v: any): string {
-  if (v === null || v === undefined || v === "") return "（空）";
-  if (typeof v === "boolean") return v ? "开启" : "关闭";
-  if (Array.isArray(v)) {
-    if (!v.length) return "（空）";
-    return v.map((x) => typeof x === "object" ? JSON.stringify(x) : x).join("、");
-  }
-  if (typeof v === "object") return JSON.stringify(v);
-  return String(v);
-}
+function isListOnly(key: string): boolean { return key === "servers" || key === "voices"; }
+function sch(key: string): any { return schema.value[key] || {}; }
 
 async function load() {
   loading.value = true;
   try {
-    const r = await apiGet<{ config: Record<string, any>; schema_groups: Record<string, string[]> }>("config");
-    config.value = r.config || {};
+    const r = await apiGet<{ config: Record<string, any>; schema_groups: Record<string, string[]>; schema: Record<string, any> }>("config");
+    config.value = JSON.parse(JSON.stringify(r.config || {}));
+    original.value = JSON.parse(JSON.stringify(r.config || {}));
     groups.value = r.schema_groups || {};
+    schema.value = r.schema || {};
   } catch (e: any) { toast(e?.message || "加载配置失败", "err"); }
   finally { loading.value = false; }
 }
 onMounted(load);
+
+function toggleBool(key: string) { config.value[key] = !config.value[key]; }
+function asList(v: any): string {
+  if (Array.isArray(v)) return v.map((x) => typeof x === "object" ? JSON.stringify(x) : x).join(", ");
+  return v == null ? "" : String(v);
+}
+function setList(key: string, val: string) {
+  config.value[key] = val.split(",").map((s) => s.trim()).filter(Boolean);
+}
+
+async function save() {
+  saving.value = true;
+  try {
+    // 只提交发生变化的键，跳过在专门页面维护的 servers / voices
+    const changed: Record<string, any> = {};
+    for (const k of Object.keys(config.value)) {
+      if (isListOnly(k)) continue;
+      if (JSON.stringify(config.value[k]) !== JSON.stringify(original.value[k])) changed[k] = config.value[k];
+    }
+    if (!Object.keys(changed).length) { toast("没有需要保存的改动", "info"); return; }
+    await apiPost("config/save", changed, 20000);
+    toast("配置已保存并生效", "ok");
+    await load();
+  } catch (e: any) { toast(e?.message || "保存失败", "err"); }
+  finally { saving.value = false; }
+}
+function reset() { config.value = JSON.parse(JSON.stringify(original.value)); toast("已撤销未保存的改动", "info"); }
 </script>
 
 <template>
   <div class="stack">
-    <div class="card" style="background:linear-gradient(100deg,rgba(124,108,255,.12),rgba(34,211,238,.05));border-color:rgba(124,108,255,.25)">
-      <div class="row">
+    <div class="card" style="background:linear-gradient(100deg,var(--seg-bg),transparent);border-color:var(--seg-border)">
+      <div class="row wrap">
         <Info :size="18" color="var(--brand-2)" />
-        <div style="font-size:13px;line-height:1.6;color:var(--text)">
-          配置在 AstrBot 后台的「插件配置」弹窗中修改，保存后本页会自动同步。这里展示的是当前生效值。
-          <a href="#" @click.prevent="load" style="color:var(--brand-2);text-decoration:none">点此刷新 <ExternalLink :size="12" style="vertical-align:-1px" /></a>
+        <div style="font-size:13px;line-height:1.6;flex:1;min-width:200px">
+          这里修改后点「保存更改」立即生效，并写回 AstrBot 插件配置（与官方配置弹窗双向一致）。
+          服务端列表与音色库请在对应页面编辑。
         </div>
+        <button class="btn btn-sm" @click="load"><RotateCcw :size="14" /> 刷新</button>
+      </div>
+    </div>
+
+    <!-- 保存栏 -->
+    <div class="card" v-if="dirty" style="position:sticky;top:8px;z-index:5;border-color:var(--item-active-border);background:var(--seg-bg)">
+      <div class="row wrap">
+        <span style="font-size:13px;color:var(--brand-soft);font-weight:600">有未保存的改动</span>
+        <span class="grow"></span>
+        <button class="btn btn-sm" @click="reset">撤销</button>
+        <button class="btn btn-primary btn-sm" :disabled="saving" @click="save"><Save :size="14" /> {{ saving ? '保存中…' : '保存更改' }}</button>
       </div>
     </div>
 
     <div class="card">
-      <div class="row wrap">
-        <div class="grow" style="min-width:180px;position:relative">
-          <SlidersHorizontal :size="15" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--faint)" />
-          <input v-model="keyword" class="input" style="padding-left:34px" placeholder="搜索配置项…" />
-        </div>
+      <div class="row" style="position:relative">
+        <SlidersHorizontal :size="15" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--faint)" />
+        <input v-model="keyword" class="input" style="padding-left:34px" placeholder="搜索配置项…" />
       </div>
     </div>
 
     <div v-if="loading" class="stack"><div v-for="i in 5" :key="i" class="skeleton" style="height:80px"></div></div>
     <template v-else>
       <div v-for="[gname, keys] in Object.entries(filteredGroups)" :key="gname" class="card">
-        <div class="card-title"><Languages class="ico" :size="16" /> {{ gname }} <span class="badge" style="margin-left:auto;font-size:10px">{{ keys.length }} 项</span></div>
-        <div class="grid grid-2" style="gap:10px 22px">
-          <div v-for="key in keys" :key="key" class="row" style="justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--border)">
-            <div style="min-width:0">
-              <div style="font-size:13px;font-weight:600">{{ labels[key] || key }}</div>
-              <div style="color:var(--faint);font-size:10px">{{ key }}</div>
+        <div class="card-title">{{ gname }} <span class="badge" style="margin-left:auto;font-size:10px">{{ keys.length }} 项</span></div>
+        <div class="grid grid-2" style="gap:14px 24px">
+          <div v-for="key in keys" :key="key" class="field" style="padding:8px 0;border-bottom:1px solid var(--border)">
+            <div class="row" style="justify-content:space-between;gap:8px">
+              <div style="min-width:0">
+                <div style="font-size:13px;font-weight:600">{{ labels[key] || key }}</div>
+                <div style="color:var(--faint);font-size:10px">{{ key }}</div>
+              </div>
+              <span v-if="isListOnly(key)" class="badge brand" style="font-size:10px">
+                <component :is="key === 'servers' ? Server : Mic2" :size="10" /> {{ key === 'servers' ? '服务端页' : '音色库页' }}
+              </span>
             </div>
-            <div style="color:var(--muted);font-size:12px;text-align:right;max-width:55%;word-break:break-all">{{ displayValue(config[key]) }}</div>
+
+            <!-- 专门页维护：只读展示 -->
+            <template v-if="isListOnly(key)">
+              <div style="color:var(--muted);font-size:12px;margin-top:6px">
+                {{ Array.isArray(config[key]) ? `${config[key].length} 项` : '—' }}（请在对应页面编辑）
+              </div>
+            </template>
+
+            <!-- bool 开关 -->
+            <template v-else-if="sch(key).type === 'bool'">
+              <button class="switch" :class="{ on: config[key] }" style="align-self:flex-start;margin-top:8px" @click="toggleBool(key)"></button>
+            </template>
+
+            <!-- options 下拉 -->
+            <template v-else-if="Array.isArray(sch(key).options)">
+              <select v-model="config[key]" class="select" style="margin-top:6px">
+                <option v-for="o in sch(key).options" :key="o" :value="o">{{ o }}</option>
+              </select>
+            </template>
+
+            <!-- 数字 -->
+            <template v-else-if="sch(key).type === 'int' || sch(key).type === 'float'">
+              <input v-model="config[key]" :type="sch(key).type === 'int' ? 'number' : 'number'" step="any" class="input" style="margin-top:6px" />
+            </template>
+
+            <!-- 字符串列表 -->
+            <template v-else-if="sch(key).type === 'list'">
+              <input :value="asList(config[key])" @input="setList(key, ($event.target as HTMLInputElement).value)" class="input" style="margin-top:6px" placeholder="多个值用逗号分隔" />
+            </template>
+
+            <!-- 字符串 -->
+            <template v-else>
+              <input v-model="config[key]" class="input" style="margin-top:6px" :placeholder="sch(key).hint || ''" />
+            </template>
+
+            <div v-if="hints[key] || sch(key).hint" style="color:var(--faint);font-size:11px;margin-top:5px;line-height:1.5">
+              {{ hints[key] || sch(key).hint }}
+            </div>
           </div>
         </div>
       </div>

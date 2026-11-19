@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, ref } from "vue";
 import {
   AudioLines, LayoutDashboard, Mic2, MessagesSquare, FlaskConical,
   Server, ScrollText, SlidersHorizontal, Radio, X, CheckCircle2, AlertCircle, Info,
+  Sun, Moon,
 } from "lucide-vue-next";
 import { toasts } from "./toast";
 import { PLUGIN_VERSION } from "./version";
@@ -34,8 +35,17 @@ const desc: Record<string, string> = {
   lab: "输入文本即时合成试听，查看波形与耗时",
   servers: "配置服务端地址，切换 TaskHub 中转站 / tts_serve 网关",
   logs: "查看合成任务历史与成功/失败统计",
-  config: "查看插件配置（在 AstrBot 配置弹窗中修改后同步）",
+  config: "查看与修改插件配置，保存后立即生效并写回 AstrBot",
 };
+
+// 主题：dark / light，持久化到 localStorage
+const theme = ref<"dark" | "light">("dark");
+function applyTheme(t: "dark" | "light") {
+  theme.value = t;
+  document.documentElement.setAttribute("data-theme", t);
+  try { localStorage.setItem("moe-tts-theme", t); } catch { /* ignore */ }
+}
+function toggleTheme() { applyTheme(theme.value === "dark" ? "light" : "dark"); }
 
 function go(key: string) {
   current.value = key;
@@ -45,7 +55,13 @@ function onHash() {
   const key = location.hash.replace(/^#\/?/, "") || "overview";
   current.value = routes.some((r) => r.key === key) ? key : "overview";
 }
-onMounted(() => { onHash(); window.addEventListener("hashchange", onHash); });
+onMounted(() => {
+  onHash();
+  window.addEventListener("hashchange", onHash);
+  let saved = "";
+  try { saved = localStorage.getItem("moe-tts-theme") || ""; } catch { /* ignore */ }
+  applyTheme(saved === "light" ? "light" : "dark");
+});
 onUnmounted(() => window.removeEventListener("hashchange", onHash));
 
 const toastIcon = { ok: CheckCircle2, err: AlertCircle, info: Info };
@@ -69,6 +85,11 @@ const toastIcon = { ok: CheckCircle2, err: AlertCircle, info: Info };
         </div>
       </nav>
       <div class="side-foot">
+        <button class="theme-btn" @click="toggleTheme" :title="theme === 'dark' ? '切换到浅色主题' : '切换到深色主题'">
+          <Sun v-if="theme === 'dark'" :size="16" />
+          <Moon v-else :size="16" />
+          <span>{{ theme === 'dark' ? '浅色主题' : '深色主题' }}</span>
+        </button>
         <span class="version-pill"><span class="dot"></span> {{ PLUGIN_VERSION }}</span>
       </div>
     </aside>
@@ -76,8 +97,16 @@ const toastIcon = { ok: CheckCircle2, err: AlertCircle, info: Info };
     <!-- 主内容 -->
     <main class="main">
       <header class="page-head anim-up">
-        <h1 class="page-title">{{ title }}</h1>
-        <div class="page-desc">{{ desc[current] }}</div>
+        <div class="row" style="justify-content:space-between;align-items:flex-start">
+          <div>
+            <h1 class="page-title">{{ title }}</h1>
+            <div class="page-desc">{{ desc[current] }}</div>
+          </div>
+          <button class="btn btn-icon theme-btn-mobile" @click="toggleTheme" :title="theme === 'dark' ? '浅色主题' : '深色主题'">
+            <Sun v-if="theme === 'dark'" :size="18" />
+            <Moon v-else :size="18" />
+          </button>
+        </div>
       </header>
       <Transition name="page" mode="out-in">
         <component :is="comp" :key="current" @navigate="go" />
@@ -107,4 +136,14 @@ const toastIcon = { ok: CheckCircle2, err: AlertCircle, info: Info };
 <style scoped>
 .text-ok { color: var(--ok); }
 .text-danger { color: var(--danger); }
+.theme-btn {
+  display: flex; align-items: center; gap: 9px; width: 100%;
+  padding: 9px 12px; margin-bottom: 10px; border-radius: 10px;
+  border: 1px solid var(--border); background: var(--fill);
+  color: var(--muted); cursor: pointer; font-size: 12.5px; font-family: inherit;
+  transition: background .2s, color .2s, border-color .2s;
+}
+.theme-btn:hover { background: var(--hover-2); color: var(--text); border-color: var(--border-hi); }
+.theme-btn-mobile { display: none; }
+@media (max-width: 900px) { .theme-btn-mobile { display: inline-flex; flex: 0 0 34px; } }
 </style>

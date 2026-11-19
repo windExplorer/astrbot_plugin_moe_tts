@@ -61,24 +61,52 @@ class TtsEngine:
         self._wav_cache: dict[str, str] = {}  # sha -> wav path（试听复用）
 
     # ---------- 音色 ----------
-    async def voices(self) -> list[dict]:
-        """合并：服务端音色 + 配置备注 + WebUI 音色库。"""
+    async def sync_server_voices(self) -> dict:
+        """从服务端拉取音色列表并落盘为本地快照；返回 {ok, count, error, meta}。
+
+        WebUI「音色库 → 从服务端同步」调用。同步后 voices() 从快照读取，
+        服务端暂时不可用也不影响读取最新一次同步的结果。
+        """
         adapter = self.router.adapter
-        server_voices: list[VoiceInfo] = []
-        if adapter:
-            try:
-                server_voices = await adapter.voices()
-            except Exception as e:
-                logger.warning(f"[moe_tts] 读取服务端音色失败: {e}")
-        merged: dict[str, dict] = {}
-        for v in server_voices:
-            merged[v.name] = {
+        if adapter is None:
+            return {"ok": False, "count": 0, "error": "未配置语音服务端"}
+        try:
+            infos = await adapter.voices()
+        except Exception as e:  # noqa: BLE001
+            return {"ok": False, "count": 0, "error": str(e)}
+        voices: dict[str, dict] = {}
+        for v in infos:
+            voices[v.name] = {
                 "name": v.name,
                 "file": v.file or v.name,
                 "text": v.text,
                 "language": v.language,
                 "enabled": v.enabled,
+            }
+        url = self.router.active.url if self.router.active else ""
+        self.store.set_server_voices(voices, source_url=url)
+        return {"ok": True, "count": len(voices), "meta": dict(self.store.server_voices_meta.data)}
+
+    async def voices(self) -> list[dict]:
+        """合并：本地服务端音色快照 + 配置备注 + WebUI 音色库。
+
+        服务端音色以「从服务端同步并落盘的快照」为准（离线可读、读取快），
+        需要更新时由 WebUI 显式触发 sync_server_voices()。
+        """
+        merged: dict[str, dict] = {}
+        # 1) 本地快照（最后一次从服务端同步的结果）
+        for name, info in self.store.server_voices.data.items():
+            if not isinstance(info, dict):
+                continue
+            merged[name] = {
+                "name": name,
+                "file": str(info.get("file") or name),
+                "text": str(info.get("text") or ""),
+                "language": str(info.get("language") or ""),
+                "enabled": bool(info.get("enabled", True)),
+                "markup": bool(info.get("markup", True)),
                 "source": "server",
+                "synced_at": str(info.get("synced_at", "")),
             }
         # 配置备注覆盖
         for item in self.config.get("voices") or []:

@@ -16,6 +16,7 @@ from textutil import (
     is_error_text,
     is_speakable,
     pcm_to_wav,
+    parse_origin,
     split_segments,
     strip_brackets,
     strip_markups,
@@ -78,6 +79,14 @@ def main():
     _dup = "好嘞，我这就给你画一张超好看的专属画像吧！"
     check("折叠紧邻重复", collapse_adjacent_repeats(_dup + _dup) == _dup)
     check("短重复不折叠", collapse_adjacent_repeats("哈哈哈哈") == "哈哈哈哈")
+
+    print("== 会话来源解析 ==")
+    g = parse_origin("aiocqhttp:GroupMessage:123456")
+    check("群聊识别", g["is_group"] and g["group_id"] == "123456" and g["user_id"] == "", str(g))
+    f = parse_origin("aiocqhttp:FriendMessage:10001")
+    check("私聊识别", (not f["is_group"]) and f["user_id"] == "10001" and f["group_id"] == "", str(f))
+    check("头像 id 群取群号", g["group_id"] == "123456")
+    check("头像 id 私聊取 QQ", f["user_id"] == "10001")
 
     print("== PCM -> WAV ==")
     wav = pcm_to_wav(b"\x00\x00" * 24000, sample_rate=24000)

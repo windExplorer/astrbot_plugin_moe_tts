@@ -388,6 +388,27 @@ def preview_segments(text: str, **kwargs) -> list[dict]:
     ]
 
 
+def parse_origin(origin: str) -> dict:
+    """解析 unified_msg_origin → {is_group, platform, msg_type, group_id, user_id, session_id}。
+
+    UMO 格式 ``<platform>:<MessageType>:<session_id>``。
+    - 群聊 aiocqhttp:GroupMessage:<群号> → session_id 是群号
+    - 私聊 aiocqhttp:FriendMessage:<QQ号> → session_id 是对方 QQ 号
+    第 2 段以 group 开头判群聊，其余（friend/private/其他）按「对人」会话处理。
+    """
+    raw = str(origin or "")
+    parts = raw.split(":")
+    platform = parts[0] if parts else ""
+    msg_type = parts[1] if len(parts) >= 3 else ""
+    session_id = parts[-1] if len(parts) >= 2 else ""
+    low = (msg_type or "").strip().lower()
+    if low.startswith("group"):
+        return {"is_group": True, "platform": platform, "msg_type": msg_type,
+                "group_id": session_id, "user_id": "", "session_id": session_id}
+    return {"is_group": False, "platform": platform, "msg_type": msg_type,
+            "group_id": "", "user_id": session_id, "session_id": session_id}
+
+
 def pcm_to_wav(pcm: bytes, sample_rate: int = 24000, channels: int = 1, sample_width: int = 2) -> bytes:
     """裸 int16 PCM → 标准 WAV 字节（内存）。"""
     import io

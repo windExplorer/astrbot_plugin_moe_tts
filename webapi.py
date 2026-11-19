@@ -32,14 +32,18 @@ def register_web_apis(plugin) -> None:
         ("/voices/update", _voice_update, ["POST"], "编辑本地音色"),
         ("/voices/delete", _voice_delete, ["POST"], "删除本地音色"),
         ("/voices/default", _voice_default, ["POST"], "设置默认音色"),
-        ("/sessions", _sessions, ["GET"], "会话语音状态列表"),
+        ("/voices/sync", _voice_sync, ["POST"], "从服务端同步音色列表到本地快照"),
+        ("/voices/snapshot", _voice_snapshot, ["GET"], "服务端音色快照元信息"),
+        ("/sessions", _sessions, ["GET"], "会话语音状态列表（群/私聊、群名、头像、活跃）"),
         ("/sessions/set", _session_set, ["POST"], "设置会话语音状态"),
         ("/sessions/delete", _session_delete, ["POST"], "删除会话状态"),
         ("/sessions/clear", _session_clear, ["POST"], "清空会话状态"),
+        ("/avatars", _avatars, ["GET"], "批量取用户/群头像（data URI）"),
         ("/synthesize", _synthesize, ["POST"], "合成试听（返回 WAV data URI）"),
         ("/segment_preview", _segment_preview, ["POST"], "分段试算"),
         ("/servers", _servers, ["GET"], "服务端列表"),
         ("/servers/add", _server_add, ["POST"], "添加服务端"),
+        ("/servers/update", _server_update, ["POST"], "编辑服务端"),
         ("/servers/activate", _server_activate, ["POST"], "切换启用的服务端（单选）"),
         ("/servers/remove", _server_remove, ["POST"], "删除服务端"),
         ("/servers/probe", _server_probe, ["POST"], "探测服务端健康与采样率"),
@@ -50,6 +54,7 @@ def register_web_apis(plugin) -> None:
         ("/translate", _translate, ["GET", "POST"], "翻译配置读取/保存"),
         ("/translate/test", _translate_test, ["POST"], "翻译测试"),
         ("/config", _config, ["GET"], "配置读取（schema + 当前值）"),
+        ("/config/save", _config_save, ["POST"], "配置保存（写回 AstrBotConfig，热生效）"),
         ("/events", _events, ["GET"], "任务日志"),
     ]
     for path, factory, methods, desc in routes:
@@ -187,24 +192,71 @@ def _voice_default(plugin):
     return handler
 
 
+def _voice_sync(plugin):
+    async def handler():
+        result = await plugin.engine.sync_server_voices()
+        if not result.get("ok"):
+            return error_response(result.get("error") or "同步失败")
+        return json_response(result)
+    return handler
+
+
+def _voice_snapshot(plugin):
+    async def handler():
+        return json_response(plugin.store.server_voice_snapshot())
+    return handler
+
+
 # ---------- 会话 ----------
 def _sessions(plugin):
     async def handler():
+        from .textutil import parse_origin
         out = []
         for origin, s in plugin.store.sessions.data.items():
             if not isinstance(s, dict):
                 continue
+            # 兼容旧数据：没有 is_group 字段时按 origin 现解析
+            parsed = parse_origin(origin)
+            is_group = bool(s.get("is_group", parsed["is_group"]))
+            group_id = str(s.get("group_id") or parsed["group_id"])
+            user_id = str(s.get("user_id") or parsed["user_id"])
             out.append({
                 "origin": origin,
                 "on": bool(s.get("on", False)),
                 "voice": str(s.get("voice", "") or ""),
                 "send_mode": str(s.get("send_mode", "") or ""),
-                "nickname": str(s.get("nickname", "") or ""),
-                "group": str(s.get("group", "") or ""),
-                "updated": s.get("updated", ""),
+                "is_group": is_group,
+                "group_id": group_id,
+                "user_id": user_id,
+                "group_name": str(s.get("group_name") or ""),
+                "nickname": str(s.get("nickname") or ""),
+                "avatar_id": str(s.get("avatar_id") or (group_id if is_group else user_id)),
+                "avatar_kind": "group" if is_group else "user",
+                "last_active": int(s.get("last_active", 0)),
+                "updated": str(s.get("updated", "") or ""),
             })
-        out.sort(key=lambda x: x.get("updated", ""), reverse=True)
+        # 活跃优先：last_active 降序，其次 updated 字符串降序
+        out.sort(key=lambda x: (x.get("last_active", 0), x.get("updated", "")), reverse=True)
         return json_response({"sessions": out})
+    return handler
+
+
+def _avatars(plugin):
+    async def handler():
+        kind = str(request.query.get("type") or "user").strip().lower()
+        if kind not in ("user", "group"):
+            kind = "user"
+        ids = [s.strip() for s in str(request.query.get("ids") or "").split(",") if s.strip()][:200]
+        force = str(request.query.get("force") or "").lower() in ("1", "true", "yes")
+        try:
+            days = int(request.query.get("days") or 0)
+        except (TypeError, ValueError):
+            days = 0
+        try:
+            items = await plugin.avatars.ensure_map(kind, ids, force=force, max_age_days=(days or None))
+            return json_response({"items": items, "requested": len(ids), "got": len(items)})
+        except Exception as e:  # noqa: BLE001
+            return error_response(f"头像获取失败: {e}")
     return handler
 
 
@@ -223,6 +275,8 @@ def _session_set(plugin):
             changes["send_mode"] = str(body["send_mode"] or "")
         if "nickname" in body:
             changes["nickname"] = str(body["nickname"] or "")
+        if "group_name" in body:
+            changes["group_name"] = str(body["group_name"] or "")
         if "group" in body:
             changes["group"] = str(body["group"] or "")
         changes["updated"] = time.strftime("%Y-%m-%d %H:%M:%S")
@@ -335,6 +389,41 @@ def _server_add(plugin):
             "timeout": int(body.get("timeout", 250) or 250),
         })
         plugin._save_servers(servers)
+        return json_response({"ok": True, "servers": plugin.router.servers_view()})
+    return handler
+
+
+def _server_update(plugin):
+    async def handler():
+        body = await _body()
+        try:
+            index = int(body.get("index", -1))
+        except (TypeError, ValueError):
+            return error_response("无效的服务端序号")
+        servers = plugin.router.servers_view()
+        if not (0 <= index < len(servers)):
+            return error_response("服务端不存在")
+        item = servers[index]
+        if "name" in body:
+            item["name"] = str(body["name"] or item["name"])
+        if "type" in body:
+            t = str(body["type"] or "taskhub")
+            item["type"] = t if t in ("taskhub", "tts_serve") else "taskhub"
+        if "url" in body:
+            url = str(body["url"] or "").strip()
+            if not url:
+                return error_response("服务地址不能为空")
+            item["url"] = url
+        if "timeout" in body:
+            try:
+                item["timeout"] = max(1, int(body["timeout"]))
+            except (TypeError, ValueError):
+                return error_response("超时必须是正整数")
+        servers[index] = item
+        plugin._save_servers(servers)
+        # 编辑的是当前启用项时，重建 adapter 让改动立即生效
+        if item.get("enabled"):
+            plugin.router.set_servers(servers)
         return json_response({"ok": True, "servers": plugin.router.servers_view()})
     return handler
 
@@ -477,12 +566,115 @@ def _translate_test(plugin):
 
 
 # ---------- 配置 ----------
+_CONF_SCHEMA_CACHE: dict[str, Any] = {}
+
+
+def _load_conf_schema(plugin) -> dict:
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_conf_schema.json")
+    cached = _CONF_SCHEMA_CACHE
+    if cached.get("path") == path and cached.get("data") is not None:
+        return cached["data"]
+    data: dict = {}
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            loaded = json.load(f)
+        if isinstance(loaded, dict):
+            data = loaded
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"[moe_tts] 读取 _conf_schema.json 失败: {e}")
+    cached["path"] = path
+    cached["data"] = data
+    return data
+
+
+def _coerce_value(key: str, value, sch: dict):
+    """按 schema 类型强转/校验配置值，返回 (ok, value|错误)。"""
+    t = str(sch.get("type") or "string").strip().lower()
+    if t == "bool":
+        if isinstance(value, bool):
+            return True, value
+        s = str(value).strip().lower()
+        if s in ("true", "1", "yes", "on"):
+            return True, True
+        if s in ("false", "0", "no", "off", ""):
+            return True, False
+        return False, f"{key}: 无法识别的布尔值 {value!r}"
+    if t == "int":
+        try:
+            return True, int(float(value))
+        except (TypeError, ValueError):
+            return False, f"{key}: 必须是整数"
+    if t == "float":
+        try:
+            return True, float(value)
+        except (TypeError, ValueError):
+            return False, f"{key}: 必须是数字"
+    if t == "string":
+        s = str(value)
+        opts = sch.get("options")
+        if opts and isinstance(opts, list) and s not in [str(o) for o in opts]:
+            return False, f"{key}: 只能是 {'/'.join(map(str, opts))} 之一"
+        return True, s
+    if t == "list":
+        if not isinstance(value, list):
+            return False, f"{key}: 必须是数组"
+        return True, [str(v) for v in value]
+    if t == "template_list":
+        if not isinstance(value, list):
+            return False, f"{key}: 必须是数组"
+        return True, value  # 服务端/音色列表由各自页面维护，这里整段放行
+    return True, value
+
+
 def _config(plugin):
     async def handler():
         return json_response({
             "config": {k: v for k, v in plugin.config.items() if k != "config"},
             "schema_groups": plugin._CONFIG_GROUPS,
+            "schema": _load_conf_schema(plugin),
         })
+    return handler
+
+
+def _config_save(plugin):
+    async def handler():
+        payload = await _body()
+        if not payload:
+            return error_response("缺少要保存的配置键值对")
+        schema = _load_conf_schema(plugin)
+        if not schema:
+            return error_response("无法读取配置 schema", status_code=500)
+        coerced: dict = {}
+        for key, value in payload.items():
+            key = str(key)
+            sch = schema.get(key)
+            if sch is None:
+                return error_response(f"未知配置键「{key}」")
+            if key in ("servers", "voices"):
+                return error_response(f"{key} 请在对应管理页维护，不能通过配置接口修改")
+            ok, result = _coerce_value(key, value, sch)
+            if not ok:
+                return error_response(str(result))
+            coerced[key] = result
+        conf = plugin._injected_config
+        if conf is None or not isinstance(conf, dict):
+            return error_response("插件配置对象不可用", status_code=500)
+        conf.update(coerced)
+        try:
+            save_async = getattr(conf, "save_config_async", None)
+            if save_async is not None:
+                await save_async()
+            else:
+                conf.save_config()
+        except Exception as e:  # noqa: BLE001
+            try:
+                conf.save_config()
+            except Exception as e2:  # noqa: BLE001
+                logger.error(f"[moe_tts] 配置落盘失败: {e2}（首次: {e}）")
+                return error_response(f"配置已热生效但落盘失败：{e2}", status_code=500)
+        plugin._refresh_cfg()
+        logger.info(f"[moe_tts] WebUI 保存配置 {list(coerced)}")
+        return json_response({"ok": True, "values": {k: plugin.config.get(k) for k in coerced}})
     return handler
 
 

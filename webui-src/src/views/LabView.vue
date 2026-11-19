@@ -111,7 +111,7 @@ async function runAsr() {
           </div>
 
           <!-- 波形 + 播放器 -->
-          <div class="card" style="background:rgba(11,15,26,.5);padding:18px">
+          <div class="card" style="background:var(--fill);padding:18px">
             <div class="wave" :class="{ static: !loading }">
               <span v-for="i in 5" :key="i"></span>
             </div>
@@ -160,7 +160,7 @@ async function runAsr() {
           <WandSparkles :size="16" /> {{ asrBusy ? '识别中…' : '开始识别' }}
         </button>
       </div>
-      <div v-if="asrText" class="card" style="margin-top:14px;background:rgba(11,15,26,.5)">
+      <div v-if="asrText" class="card" style="margin-top:14px;background:var(--fill)">
         <div style="color:var(--muted);font-size:12px;margin-bottom:6px">识别结果</div>
         <div style="font-size:14px;line-height:1.7">{{ asrText }}</div>
       </div>

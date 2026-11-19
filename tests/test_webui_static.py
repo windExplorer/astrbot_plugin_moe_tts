@@ -44,8 +44,13 @@ def main():
     # JS 里含所有页面关键文案（确认源码已编进产物）
     if js_files:
         js = open(os.path.join(assets_dir, js_files[0]), "r", encoding="utf-8").read()
-        for token in ["总览", "音色库", "会话管理", "合成实验室", "服务端", "任务日志", "萌萌语音", "分段试算", "极速克隆"]:
+        for token in ["总览", "音色库", "会话管理", "合成实验室", "服务端", "任务日志", "萌萌语音",
+                      "分段试算", "极速克隆", "浅色主题", "深色主题", "从服务端同步", "保存更改",
+                      "群聊", "私聊", "刷新头像", "刚刚"]:
             check(f"产物含文案「{token}」", token in js)
+        # 浅色主题令牌与切换逻辑
+        for token in ["data-theme", "moe-tts-theme", "--surface-solid", "light"]:
+            check(f"产物含主题机制「{token}」", token in js)
 
     # 禁止 i18n（工作区红线）
     i18n_dir = os.path.join(ROOT, ".astrbot-plugin", "i18n")

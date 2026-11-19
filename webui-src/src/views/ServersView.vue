@@ -2,7 +2,7 @@
 import { onMounted, ref } from "vue";
 import {
   Server as ServerIcon, Plus, Trash2, Check, Radio, RefreshCw,
-  Cpu, MemoryStick, X, Zap, Activity,
+  Cpu, MemoryStick, X, Zap, Activity, Pencil,
 } from "lucide-vue-next";
 import { apiGet, apiPost } from "../api";
 import type { Server } from "../api";
@@ -15,7 +15,14 @@ const probing = ref(-1);
 const canManage = ref(false);
 const status = ref<any>(null);
 
-const form = ref({ show: false, name: "", type: "taskhub", url: "http://127.0.0.1:9000", timeout: 250 });
+const form = ref({ show: false, edit: false, index: -1, name: "", type: "taskhub", url: "http://127.0.0.1:9000", timeout: 250 });
+
+function openAdd() {
+  form.value = { show: true, edit: false, index: -1, name: "", type: "taskhub", url: "http://127.0.0.1:9000", timeout: 250 };
+}
+function openEdit(s: Server) {
+  form.value = { show: true, edit: true, index: s.index, name: s.name, type: s.type, url: s.url, timeout: s.timeout };
+}
 
 async function load() {
   loading.value = true;
@@ -50,14 +57,20 @@ async function activate(index: number) {
   } catch (e: any) { toast(e?.message || "切换失败", "err"); }
   finally { probing.value = -1; }
 }
-async function addServer() {
+async function saveServer() {
   if (!form.value.url.trim()) return toast("服务地址不能为空", "err");
   try {
-    await apiPost("servers/add", { ...form.value, enabled: servers.value.length === 0 });
+    const { show, edit, index, ...payload } = form.value;
+    if (edit) {
+      await apiPost("servers/update", { index, ...payload });
+      toast("服务端已更新", "ok");
+    } else {
+      await apiPost("servers/add", { ...payload, enabled: servers.value.length === 0 });
+      toast("服务端已添加", "ok");
+    }
     form.value.show = false;
     await load();
-    toast("服务端已添加", "ok");
-  } catch (e: any) { toast(e?.message || "添加失败", "err"); }
+  } catch (e: any) { toast(e?.message || "保存失败", "err"); }
 }
 async function remove(s: Server) {
   if (!confirm(`删除服务端「${s.name}」？`)) return;
@@ -82,7 +95,7 @@ async function vram(action: "load" | "unload") {
           <div class="card-title" style="margin:0"><ServerIcon class="ico" :size="17" /> 服务端列表 <span class="badge brand" style="font-size:10px">同时启用一个</span></div>
           <div style="color:var(--muted);font-size:12px;margin-top:6px">点击「启用」切换当前使用的服务端；切换后自动探测采样率。</div>
         </div>
-        <button class="btn btn-primary" @click="form.show = true"><Plus :size="16" /> 添加服务端</button>
+        <button class="btn btn-primary" @click="openAdd"><Plus :size="16" /> 添加服务端</button>
         <button class="btn" @click="load"><RefreshCw :size="15" /> 刷新</button>
       </div>
     </div>
@@ -115,6 +128,7 @@ async function vram(action: "load" | "unload") {
           <Zap v-else :size="14" />
           {{ s.enabled ? '当前' : '启用' }}
         </button>
+        <button class="btn btn-sm btn-icon" title="编辑" @click="openEdit(s)"><Pencil :size="14" /></button>
         <button class="btn btn-sm btn-icon btn-danger" title="删除" @click="remove(s)"><Trash2 :size="14" /></button>
       </div>
     </div>
@@ -144,7 +158,7 @@ async function vram(action: "load" | "unload") {
     <div v-if="form.show" class="mask" @click.self="form.show = false">
       <div class="modal anim-pop">
         <div class="modal-head">
-          <div class="modal-title">添加服务端</div>
+          <div class="modal-title">{{ form.edit ? '编辑服务端' : '添加服务端' }}</div>
           <button class="btn btn-ghost btn-icon" @click="form.show = false"><X :size="18" /></button>
         </div>
         <div class="stack">
@@ -159,7 +173,7 @@ async function vram(action: "load" | "unload") {
           <div class="field"><label class="field-label">超时（秒）</label><input v-model.number="form.timeout" type="number" class="input" /></div>
           <div class="row" style="margin-top:8px">
             <button class="btn grow" @click="form.show = false">取消</button>
-            <button class="btn btn-primary grow" @click="addServer">添加</button>
+            <button class="btn btn-primary grow" @click="saveServer">{{ form.edit ? '保存' : '添加' }}</button>
           </div>
         </div>
       </div>

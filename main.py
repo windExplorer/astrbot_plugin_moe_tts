@@ -43,11 +43,12 @@ from . import textutil as textutil_mod
 from . import translator as translator_mod
 from . import tts_engine as engine_mod
 from . import webapi as webapi_mod
+from . import avatar as avatar_mod
 
 PLUGIN_ID = "astrbot_plugin_moe_tts"
 
 _RELOAD_MODULES = [
-    "textutil", "store", "server", "translator", "tts_engine", "webapi",
+    "textutil", "store", "server", "translator", "avatar", "tts_engine", "webapi",
 ]
 _PKG = __package__ or PLUGIN_ID
 
@@ -86,11 +87,15 @@ class MoeTtsPlugin(Star):
     def __init__(self, context: Context, config: dict | None = None):
         super().__init__(context)
         _reload_sibling_modules()
-        self.config = config if config is not None else (self.context.get_config() or {})
+        # 保留 AstrBot 注入的原始配置对象（WebUI 保存配置要写回它并 save_config）
+        self._injected_config = config if config is not None else (self.context.get_config() or {})
+        self.config = self._injected_config
         self._version = _read_version()
 
         data_dir = self._data_dir()
         self.store = store_mod.PluginStore(data_dir)
+        self.avatars = avatar_mod.AvatarCache(os.path.join(data_dir, "avatars"))
+        self._group_name_pending: set = set()
         self._server_file = os.path.join(data_dir, "servers.json")
         self._translate_file = os.path.join(data_dir, "translate_config.json")
 
@@ -206,7 +211,10 @@ class MoeTtsPlugin(Star):
     def _refresh_cfg(self) -> dict:
         cfg = self.context.get_config() or {}
         if isinstance(cfg, dict) and cfg:
-            self.config = cfg
+            # 就地更新，保持 self.config 与 self._injected_config 指向同一对象
+            # （WebUI 保存配置写回注入对象时会同步更新这里）
+            self.config.clear()
+            self.config.update(cfg)
         return self.config
 
     # ---------- 事件标记 ----------
@@ -238,20 +246,48 @@ class MoeTtsPlugin(Star):
         return text
 
     def _remember_names(self, event, origin: str) -> None:
-        changes: dict = {}
+        """记录会话元数据：类型/群号/QQ/昵称/群名(后台补查)/头像ID/活跃时间。"""
+        parsed = textutil_mod.parse_origin(origin)
+        changes: dict = {
+            "is_group": parsed["is_group"],
+            "group_id": parsed["group_id"],
+            "user_id": parsed["user_id"],
+            "avatar_id": parsed["group_id"] if parsed["is_group"] else parsed["user_id"],
+            "avatar_kind": "group" if parsed["is_group"] else "user",
+            "last_active": int(time.time()),
+            "updated": time.strftime("%Y-%m-%d %H:%M:%S"),
+        }
         try:
             name = event.get_sender_name()
             if name:
                 changes["nickname"] = str(name)
         except Exception:
             pass
-        if not changes:
-            return
-        s = self.store.session(origin)
-        if all(s.get(k) == v for k, v in changes.items()):
-            return
-        changes["updated"] = time.strftime("%Y-%m-%d %H:%M:%S")
+        # 群名：优先取消息随附的 group.group_name（不触发额外 API）
+        if parsed["is_group"]:
+            g = getattr(getattr(event, "message_obj", None), "group", None)
+            gname = str(getattr(g, "group_name", "") or "").strip()
+            if gname:
+                changes["group_name"] = gname
+        # 每次消息都更新活跃时间（群名/昵称不变也要刷新 last_active）
         self.store.session_update(origin, changes)
+
+        # 群名缺失时后台补查（get_group 会连发两个 OneBot API，不能阻塞回复）
+        if parsed["is_group"] and not self.store.session(origin).get("group_name"):
+            if origin not in self._group_name_pending:
+                self._group_name_pending.add(origin)
+                asyncio.create_task(self._fetch_group_name(event, origin))
+
+    async def _fetch_group_name(self, event, origin: str) -> None:
+        try:
+            group = await event.get_group()
+            gname = str(getattr(group, "group_name", "") or "").strip() if group else ""
+            if gname:
+                self.store.session_set(origin, "group_name", gname)
+        except Exception as e:  # noqa: BLE001
+            logger.debug(f"[moe_tts] 后台补查群名失败 {origin}: {e}")
+        finally:
+            self._group_name_pending.discard(origin)
 
     def _is_llm(self, result) -> bool:
         ct = getattr(result, "result_content_type", None)
@@ -646,4 +682,8 @@ class MoeTtsPlugin(Star):
                     task.cancel()
             except Exception:
                 pass
+        try:
+            await self.avatars.close()
+        except Exception:
+            pass
         logger.info("[moe_tts] 插件已卸载")

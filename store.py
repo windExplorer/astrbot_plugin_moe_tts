@@ -70,6 +70,11 @@ class PluginStore:
         self.voices = JsonStore(os.path.join(data_dir, "voices.json"), {})
         # 默认音色覆盖（WebUI 设置，优先于配置项）
         self.default_voice = JsonStore(os.path.join(data_dir, "default_voice.json"), {"name": ""})
+        # 服务端音色快照：从服务端 /voices 同步后落盘，离线也能读。
+        # {name: {name, file, text, language, enabled, markup, source, synced_at}}
+        self.server_voices = JsonStore(os.path.join(data_dir, "server_voices.json"), {})
+        self.server_voices_meta = JsonStore(os.path.join(data_dir, "server_voices_meta.json"),
+                                             {"synced_at": "", "source_url": "", "count": 0})
         # 任务日志（环形，最新在前）
         self.events = JsonStore(os.path.join(data_dir, "events.json"), [])
 
@@ -165,3 +170,33 @@ class PluginStore:
         events = self.recent_events()
         ok = sum(1 for e in events if e.get("ok"))
         return {"total": len(events), "ok": ok, "failed": len(events) - ok}
+
+    # ---------- 服务端音色快照 ----------
+    def set_server_voices(self, voices: dict[str, dict], *, source_url: str = "") -> None:
+        """整批替换服务端音色快照（同步时调用），保留本地备注字段。"""
+        import time as _time
+        old = self.server_voices.data
+        merged: dict[str, dict] = {}
+        for name, info in voices.items():
+            item = dict(info)
+            prev = old.get(name, {}) if isinstance(old.get(name), dict) else {}
+            # 本地备注（语种/markup）若服务端没有则以本地为准
+            if not item.get("language") and prev.get("language"):
+                item["language"] = prev["language"]
+            if "markup" not in item and "markup" in prev:
+                item["markup"] = prev["markup"]
+            item["source"] = "server"
+            item["synced_at"] = _time.strftime("%Y-%m-%d %H:%M:%S")
+            merged[name] = item
+        self.server_voices.data = merged
+        self.server_voices.save()
+        self.server_voices_meta.set("synced_at", _time.strftime("%Y-%m-%d %H:%M:%S"), save=False)
+        self.server_voices_meta.set("source_url", str(source_url or ""), save=False)
+        self.server_voices_meta.set("count", len(merged), save=False)
+        self.server_voices_meta.save()
+
+    def server_voice_snapshot(self) -> dict:
+        return {
+            "voices": list(self.server_voices.data.values()),
+            "meta": dict(self.server_voices_meta.data),
+        }

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import { Mic2, Search, Plus, Play, Pencil, Trash2, Star, Volume2, X, LoaderCircle } from "lucide-vue-next";
+import { Mic2, Search, Plus, Play, Pencil, Trash2, Star, Volume2, X, LoaderCircle, RefreshCw, CloudDownload } from "lucide-vue-next";
 import { apiGet, apiPost } from "../api";
 import type { Voice } from "../api";
 import { toast } from "../toast";
@@ -9,6 +9,8 @@ const voices = ref<Voice[]>([]);
 const defaultVoice = ref("");
 const keyword = ref("");
 const loading = ref(true);
+const syncing = ref(false);
+const snapshot = ref<{ synced_at: string; source_url: string; count: number }>({ synced_at: "", source_url: "", count: 0 });
 const previewText = ref("你好呀，这是萌萌语音的音色试听。今天天气不错，我们出去走走吧～");
 const playing = ref("");
 const audio = new Audio();
@@ -31,13 +33,28 @@ const filtered = computed(() => {
 async function load() {
   loading.value = true;
   try {
-    const r = await apiGet<{ voices: Voice[]; default: string }>("voices");
+    const [r, snap] = await Promise.all([
+      apiGet<{ voices: Voice[]; default: string }>("voices"),
+      apiGet<{ meta: typeof snapshot.value }>("voices/snapshot").catch(() => ({ meta: snapshot.value })),
+    ]);
     voices.value = r.voices || [];
     defaultVoice.value = r.default || "";
+    snapshot.value = snap.meta || snapshot.value;
   } catch (e: any) { toast(e?.message || "加载音色失败", "err"); }
   finally { loading.value = false; }
 }
 onMounted(load);
+
+async function syncVoices() {
+  syncing.value = true;
+  try {
+    const r = await apiPost<{ ok: boolean; count: number; meta: typeof snapshot.value }>("voices/sync", {}, 30000);
+    snapshot.value = r.meta || snapshot.value;
+    toast(`已从服务端同步 ${r.count} 个音色`, "ok");
+    await load();
+  } catch (e: any) { toast(e?.message || "同步失败", "err"); }
+  finally { syncing.value = false; }
+}
 
 function openAdd() {
   form.value = { show: true, edit: false, oldName: "", name: "", file: "", text: "", language: "zh", markup: true, enabled: true };
@@ -85,13 +102,29 @@ async function preview(v: Voice) {
 <template>
   <div class="stack">
     <div class="card">
+      <!-- 服务端音色快照信息 -->
+      <div class="row wrap" style="padding-bottom:12px;border-bottom:1px solid var(--border);margin-bottom:14px;gap:8px">
+        <CloudDownload :size="16" color="var(--brand-2)" />
+        <div style="font-size:12px;color:var(--muted);flex:1;min-width:180px">
+          <template v-if="snapshot.synced_at">
+            服务端音色快照：{{ snapshot.count }} 个 · 同步于 {{ snapshot.synced_at }}
+            <span v-if="snapshot.source_url" style="color:var(--faint)">（{{ snapshot.source_url }}）</span>
+          </template>
+          <template v-else>尚未从服务端同步音色，点右侧按钮拉取最新列表并存入本地。</template>
+        </div>
+        <button class="btn btn-sm btn-cyan" :disabled="syncing" @click="syncVoices">
+          <LoaderCircle v-if="syncing" :size="14" class="animate-spin" />
+          <CloudDownload v-else :size="14" />
+          {{ syncing ? '同步中…' : '从服务端同步' }}
+        </button>
+      </div>
       <div class="row wrap">
         <div class="grow" style="min-width:200px;position:relative">
           <Search :size="16" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--faint)" />
           <input v-model="keyword" class="input" style="padding-left:36px" placeholder="搜索音色名 / 语种…" />
         </div>
         <button class="btn btn-primary" @click="openAdd"><Plus :size="16" /> 新增音色</button>
-        <button class="btn" @click="load">刷新</button>
+        <button class="btn" @click="load"><RefreshCw :size="15" /> 刷新</button>
       </div>
       <div class="field" style="margin-top:14px">
         <label class="field-label"><Volume2 :size="13" style="vertical-align:-2px" /> 试听文本（点任意音色播放）</label>

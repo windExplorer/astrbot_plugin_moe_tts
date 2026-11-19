@@ -1,0 +1,235 @@
+{
+  "servers": {
+    "type": "template_list",
+    "title": "服务端列表",
+    "description": "可存多个语音服务端，但同时只启用一个（在 WebUI「服务端」页切换）。",
+    "hint": "类型选 taskhub（任务中转站，默认）或 tts_serve（直连网关）。只有一个会被启用；切换后自动探测采样率。",
+    "templates": {
+      "server": {
+        "name": "添加服务端",
+        "hint": "新增一个语音服务端地址",
+        "display_item": "name",
+        "items": {
+          "name": { "type": "string", "title": "名称", "description": "便于识别的名字", "default": "" },
+          "type": {
+            "type": "string",
+            "title": "类型",
+            "description": "taskhub 中转站 / tts_serve 网关",
+            "options": ["taskhub", "tts_serve"],
+            "default": "taskhub"
+          },
+          "url": { "type": "string", "title": "地址", "description": "服务根地址", "default": "http://127.0.0.1:9000" },
+          "enabled": { "type": "bool", "title": "启用（仅一个）", "description": "同时只能有一个服务端启用", "default": false }
+        }
+      }
+    },
+    "default": [
+      { "name": "任务中转站", "type": "taskhub", "url": "http://127.0.0.1:9000", "enabled": true }
+    ]
+  },
+  "timeout": {
+    "type": "int",
+    "title": "请求超时（秒）",
+    "description": "单次合成读超时，含排队等待。",
+    "hint": "TaskHub 实际为 queue_wait(120)+infer_timeout(120)=240s，默认 250s 留余量；直连网关可按需调小。",
+    "default": 250
+  },
+  "tts_queue_max_position": {
+    "type": "int",
+    "title": "排队阈值（繁忙判定）",
+    "description": "X-Queue-Position ≥ 此值时判定繁忙，直接回退文字。",
+    "hint": "仅中转站返回该头时生效。0=不限制。默认 8。",
+    "default": 8
+  },
+  "default_voice": {
+    "type": "string",
+    "title": "默认音色",
+    "description": "默认使用的音色名（服务端侧的参考音频文件名）。",
+    "hint": "留空则使用服务端 voices 列表第一个。例：xiaoyu.wav。",
+    "default": ""
+  },
+  "voices": {
+    "type": "template_list",
+    "title": "音色备注",
+    "description": "给服务端音色补充展示名、语种等（合并服务端 /voices 列表）。",
+    "hint": "prompt_wav 填服务端音色文件名；与 WebUI 音色库合并展示，同名以 WebUI 为准。",
+    "templates": {
+      "voice": {
+        "name": "添加音色",
+        "hint": "补充一条音色元数据",
+        "display_item": "name",
+        "items": {
+          "name": { "type": "string", "title": "音色名", "description": "唯一标识", "default": "" },
+          "prompt_wav": { "type": "string", "title": "参考音频", "description": "服务端音色文件名", "default": "" },
+          "prompt_text": { "type": "string", "title": "参考文本", "description": "逐字原文（可选）", "default": "" },
+          "language": { "type": "string", "title": "语种", "description": "zh/en/ja/ko 等，用于分组", "default": "" },
+          "markup": { "type": "bool", "title": "注入副语言标记", "description": "是否注入换气/笑声标记", "default": true }
+        }
+      }
+    },
+    "default": []
+  },
+  "send_mode": {
+    "type": "string",
+    "title": "发送方式",
+    "description": "语音如何随文字发送。",
+    "hint": "both=文字+语音都发（推荐）；voice_only=只发语音（文字仍进会话上下文）。",
+    "options": ["both", "voice_only"],
+    "default": "both"
+  },
+  "auto_tts": {
+    "type": "bool",
+    "title": "自动语音",
+    "description": "是否默认把符合条件的回复朗读出来。",
+    "hint": "关闭时仅关键词触发、/语音 或 LLM 工具才发声。会话 /语音开 可单独覆盖。",
+    "default": false
+  },
+  "tts_scope": {
+    "type": "string",
+    "title": "语音范围",
+    "description": "哪些消息会被转成语音。",
+    "hint": "llm_only=仅大模型回复；all_text=所有文本结果。",
+    "options": ["llm_only", "all_text"],
+    "default": "llm_only"
+  },
+  "enable_llm_tool": {
+    "type": "bool",
+    "title": "启用 LLM 工具",
+    "description": "让模型可主动调用朗读/列音色/切换音色/ASR 转写工具。",
+    "default": true
+  },
+  "enable_user_trigger": {
+    "type": "bool",
+    "title": "启用关键词触发",
+    "description": "命中触发词时本条回复转语音。",
+    "default": true
+  },
+  "trigger_keywords": {
+    "type": "list",
+    "title": "触发关键词",
+    "description": "命中即朗读本条回复。",
+    "items": { "type": "string" },
+    "default": ["念出来", "读出来", "说出来"]
+  },
+  "text_keywords": {
+    "type": "list",
+    "title": "纯文字请求关键词",
+    "description": "命中则本条只发文字，不改变语音开关。",
+    "items": { "type": "string" },
+    "default": ["用文字", "发文字", "文字回复", "别用语音", "不用语音念"]
+  },
+  "blocklist": {
+    "type": "list",
+    "title": "不转语音名单",
+    "description": "填 unified_msg_origin 或 sender_id，命中即跳过。",
+    "items": { "type": "string" },
+    "default": []
+  },
+  "allowlist": {
+    "type": "list",
+    "title": "仅名单内转语音",
+    "description": "留空=不限制；否则仅名单内生效。",
+    "items": { "type": "string" },
+    "default": []
+  },
+  "skip_bracket_tts": {
+    "type": "bool",
+    "title": "括号内容不朗读",
+    "description": "被 （）() [] 包裹的文字不进语音，文字仍显示。",
+    "default": true
+  },
+  "auto_breath": {
+    "type": "bool",
+    "title": "自动标点换气",
+    "description": "句末插 [breath]、句中插 [quick_breath]。",
+    "default": true
+  },
+  "auto_effect": {
+    "type": "bool",
+    "title": "关键词音效",
+    "description": "按语种词典追加 [laughter]/[sigh] 等标记。",
+    "default": false
+  },
+  "effect_intensity": {
+    "type": "string",
+    "title": "音效密度",
+    "description": "每轮音效上限。",
+    "options": ["light", "medium", "strong"],
+    "default": "medium"
+  },
+  "split_by_newline": {
+    "type": "bool",
+    "title": "优先按换行分段",
+    "description": "多行回复先按行切分再合成。",
+    "default": true
+  },
+  "newline_min_len": {
+    "type": "int",
+    "title": "换行段最小字数",
+    "description": "短于此字数的行与相邻行合并，0=不合并。",
+    "default": 10
+  },
+  "segment_len": {
+    "type": "string",
+    "title": "分段字数（最小,最大）",
+    "description": "长回复按语义符号切分，如 30,50。",
+    "hint": "0/留空=关闭（改用 max_text_len 硬切）。只填一个数=仅设最大。",
+    "default": "0"
+  },
+  "segment_first_len": {
+    "type": "string",
+    "title": "首段字数（最小,最大）",
+    "description": "首段独立窗口（更快出声），0=沿用 segment_len。",
+    "default": "0"
+  },
+  "segment_punct": {
+    "type": "string",
+    "title": "分段符号",
+    "description": "在这些句末符号处切分，不含逗号顿号。",
+    "default": "。！？.!?"
+  },
+  "segment_merge": {
+    "type": "bool",
+    "title": "分段合并为一条",
+    "description": "false=逐段流式发送；true=全部合成后拼一条。",
+    "default": false
+  },
+  "max_text_len": {
+    "type": "int",
+    "title": "单段硬上限",
+    "description": "无标点兜底硬切长度；segment_len 关闭时为分段窗口。",
+    "default": 200
+  },
+  "tts_concurrency": {
+    "type": "int",
+    "title": "合成并发数",
+    "description": "同时打到服务端的请求数。",
+    "hint": "中转站全局并发已锁 1，插件侧保持 1 即可。",
+    "default": 1
+  },
+  "tts_max_retry": {
+    "type": "int",
+    "title": "失败重试次数",
+    "description": "429/504 等可重试错误的次数，0=不重试。",
+    "default": 1
+  },
+  "tts_retry_backoff": {
+    "type": "float",
+    "title": "重试退避基数（秒）",
+    "description": "第 n 次等待 = 基数 × 2^(n-1)。",
+    "default": 0.5
+  },
+  "tts_cooldown_sec": {
+    "type": "float",
+    "title": "失败冷却时长（秒）",
+    "description": "服务端失败后多久内不再请求、直接回退文字。",
+    "default": 30
+  },
+  "fast_clone": {
+    "type": "bool",
+    "title": "极速克隆（直连网关有效）",
+    "description": "Qwen3 极速克隆模式，无需参考文本。",
+    "hint": "仅 tts_serve 直连时生效；TaskHub 中转站忽略此项。",
+    "default": true
+  }
+}

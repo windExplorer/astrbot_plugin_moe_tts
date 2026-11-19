@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Node / frontend source build deps
+node_modules/
+webui-src/node_modules/
+
+# 前端版本号由 build_webui.ps1 从 metadata.yaml 注入生成
+webui-src/src/version.ts
+
+# 打包产物（本地安装用，不入 git）
+dist/
+
+# 数据 / 缓存
+data/
+*.log
+.reasonix/
+.DS_Store
+
+# 编辑器 / 临时
+.vscode/
+.idea/
+*.tmp
+test_out.txt
+wst.txt

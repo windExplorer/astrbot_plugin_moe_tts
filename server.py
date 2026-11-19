@@ -131,24 +131,52 @@ class BaseAdapter:
         raise TTSError("当前服务端不支持显存管理，请直连 tts_serve 网关", code=0)
 
 
+def _text_of(value: Any) -> str:
+    """兼容 texts 的值是 str 或对象（prompt_text 字段）。"""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, dict):
+        for k in ("prompt_text", "text", "prompt"):
+            v = value.get(k)
+            if isinstance(v, str) and v:
+                return v
+    return ""
+
+
 def _parse_voices_taskhub(data: Any) -> list[VoiceInfo]:
-    """TaskHub /voices: {voices_dir, files, texts}。"""
+    """解析 TaskHub /voices。
+
+    TaskHub 原版返回 ``{voices_dir, files: list[str], texts: dict[str,str]}``；
+    我们改造后代理上游 tts_serve 音色，仍是这套结构（files 为文件名列表，
+    texts 按文件名索引）。同时兼容 files 为 dict 的旧/变体格式。
+    """
     out: list[VoiceInfo] = []
     if not isinstance(data, dict):
         return out
     files = data.get("files")
-    texts = data.get("texts")
-    if isinstance(files, dict):
-        for name, val in files.items():
-            out.append(VoiceInfo(
-                name=str(name),
-                file=str(val if isinstance(val, str) else name),
-                text=str((texts or {}).get(name, "") if isinstance(texts, dict) else ""),
-            ))
-    elif isinstance(files, (list, tuple)):
+    texts = data.get("texts") if isinstance(data.get("texts"), dict) else {}
+
+    def add(name: str, file: str) -> None:
+        if not name:
+            return
+        out.append(VoiceInfo(
+            name=name,
+            file=file or name,
+            text=_text_of(texts.get(name) or texts.get(file) or ""),
+        ))
+
+    if isinstance(files, (list, tuple)):
+        # 标准：files 是文件名列表，texts 按文件名索引
         for item in files:
             name = str(item)
-            out.append(VoiceInfo(name=name, file=name))
+            add(name, name)
+    elif isinstance(files, dict):
+        # 变体：files 是 {name: file} 或 {name: {...}}
+        for name, val in files.items():
+            if isinstance(val, dict):
+                add(str(name), str(val.get("prompt_wav") or name))
+            else:
+                add(str(name), str(val or name))
     return out
 
 

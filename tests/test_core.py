@@ -122,6 +122,20 @@ def main():
                 for k, sub in (tmpl.get("items") or {}).items():
                     check(f"template {tname}.{k} 有 type", isinstance(sub, dict) and "type" in sub)
 
+    print("== TaskHub 音色解析 ==")
+    from server import _parse_voices_taskhub, _text_of
+    tv = _parse_voices_taskhub({
+        "voices_dir": "voices",
+        "files": ["萌1.wav", "飒爽1.wav"],
+        "texts": {"萌1.wav": "今天的晚霞超好看的", "飒爽1.wav": {"prompt_text": "我的人生我做主"}},
+    })
+    check("files 是 list 能解析", len(tv) == 2, str(tv))
+    check("文件名做 name/file", tv[0].name == "萌1.wav" and tv[0].file == "萌1.wav")
+    check("texts str 值读取", tv[0].text == "今天的晚霞超好看的")
+    check("texts 对象值读取 prompt_text", tv[1].text == "我的人生我做主", str(tv[1]))
+    check("空数据返回空", _parse_voices_taskhub({"files": [], "texts": {}}) == [])
+    check("dict 变体兼容", len(_parse_voices_taskhub({"files": {"xiaoyu": "xiaoyu.wav"}, "texts": {}})) == 1)
+
     print("== 服务端路由（单选）==")
     from server import TTSRouter
     r = TTSRouter([

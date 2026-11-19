@@ -15,6 +15,11 @@ const previewText = ref("你好呀，这是萌萌语音的音色试听。今天�
 const playing = ref("");
 const audio = new Audio();
 
+function vname(v: Voice): string {
+  // 服务端音色以文件名标识（如 萌1.wav），展示时去掉扩展名更清爽
+  return v.name.replace(/\.[^.]+$/, "") || v.name;
+}
+
 const form = ref<{ show: boolean; edit: boolean; oldName: string; name: string; file: string; text: string; language: string; markup: boolean; enabled: boolean }>({
   show: false, edit: false, oldName: "", name: "", file: "", text: "", language: "", markup: true, enabled: true,
 });
@@ -151,7 +156,7 @@ async function preview(v: Voice) {
               <div class="avatar" style="width:36px;height:36px;flex-basis:36px"><Mic2 :size="17" /></div>
               <div class="grow" style="min-width:0">
                 <div class="row" style="gap:6px">
-                  <strong style="font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ v.name }}</strong>
+                  <strong style="font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ vname(v) }}</strong>
                   <span v-if="defaultVoice === v.name" class="badge warn" style="font-size:10px"><Star :size="10" fill="currentColor" /> 默认</span>
                 </div>
                 <div style="color:var(--faint);font-size:11px;margin-top:3px">{{ v.file }}</div>

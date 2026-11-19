@@ -1,5 +1,16 @@
 # 更新日志
 
+## v0.3.2
+
+修复三个使用问题（路由 / 音色同步 / 按钮样式）：
+
+- **刷新页面保持当前页**：插件页在 AstrBot iframe 里，刷新时 hash 会丢导致跳回总览。现在切页时把当前页写进 localStorage，hash 丢失时从它恢复，不再一律回总览。
+- **TaskHub 音色同步为空**：
+  - 插件侧：TaskHub `/voices` 的 `files` 是**文件名 list**（不是 dict），旧解析只处理 dict、且没读 `texts`；重写为按 list 解析并把 `texts`（字符串或对象格式的 `prompt_text`）正确映射为音色参考文本。
+  - 服务端侧（TaskHub 项目 `adapters/tts.py`）：`voices_info()` 改为**优先代理上游 tts_serve 的 `/voices`**（对象格式 → 转为标准 `{files, texts}`），上游不可用才回退本地配置。这样即使 TaskHub 自身 `voices_dir/voices_json` 未配置，也能透出上游真实音色。需重启 TaskHub 生效。
+- **按钮字色**：`.btn-primary` / `.btn-cyan` 等深色/饱和渐变底按钮强制白色字体，修复浅色主题下「深底黑字看不清」。
+- 自检新增 TaskHub 音色解析测试（list 格式 + 对象 texts），core 92 项全过。
+
 ## v0.3.1
 
 修复 v0.3.0 安装即失败的严重 bug。

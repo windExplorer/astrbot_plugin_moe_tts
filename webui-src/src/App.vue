@@ -47,13 +47,26 @@ function applyTheme(t: "dark" | "light") {
 }
 function toggleTheme() { applyTheme(theme.value === "dark" ? "light" : "dark"); }
 
+const PAGE_KEY = "moe-tts-page";
+function validKey(key: string): boolean { return routes.some((r) => r.key === key); }
+
 function go(key: string) {
   current.value = key;
   location.hash = "#/" + key;
+  // AstrBot 插件页在 iframe 里，刷新时 hash 可能丢失；同步记到 localStorage 兜底
+  try { localStorage.setItem(PAGE_KEY, key); } catch { /* ignore */ }
 }
 function onHash() {
-  const key = location.hash.replace(/^#\/?/, "") || "overview";
-  current.value = routes.some((r) => r.key === key) ? key : "overview";
+  const key = location.hash.replace(/^#\/?/, "");
+  if (key && validKey(key)) {
+    current.value = key;
+    try { localStorage.setItem(PAGE_KEY, key); } catch { /* ignore */ }
+    return;
+  }
+  // hash 为空/无效：从 localStorage 恢复上次页签，而不是一律回总览
+  let saved = "";
+  try { saved = localStorage.getItem(PAGE_KEY) || ""; } catch { /* ignore */ }
+  current.value = validKey(saved) ? saved : "overview";
 }
 onMounted(() => {
   onHash();

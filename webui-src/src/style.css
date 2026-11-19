@@ -264,9 +264,11 @@ body {
 .btn:hover:not(:disabled) { transform: translateY(-2px); background: var(--hover-2); border-color: var(--border-hi); }
 .btn:active:not(:disabled) { transform: translateY(0) scale(.98); }
 .btn:disabled { opacity: .45; cursor: not-allowed; }
-.btn-primary { background: linear-gradient(135deg, var(--brand), var(--brand-deep)); border-color: transparent; box-shadow: var(--brand-shadow); }
-.btn-primary:hover:not(:disabled) { box-shadow: var(--brand-shadow-hi); filter: brightness(1.08); }
-.btn-cyan { background: linear-gradient(135deg, var(--brand-2), #0891b2); border-color: transparent; box-shadow: var(--cyan-shadow); }
+/* 深色/饱和渐变底：强制白字，避免继承 --text 出现深底黑字 */
+.btn-primary { background: linear-gradient(135deg, var(--brand), var(--brand-deep)); border-color: transparent; box-shadow: var(--brand-shadow); color: #fff; }
+.btn-primary:hover:not(:disabled) { box-shadow: var(--brand-shadow-hi); filter: brightness(1.08); color: #fff; }
+.btn-cyan { background: linear-gradient(135deg, var(--brand-2), #0891b2); border-color: transparent; box-shadow: var(--cyan-shadow); color: #fff; }
+.btn-cyan:hover:not(:disabled) { color: #fff; }
 .btn-danger { background: var(--danger-fill); border-color: var(--danger-border); color: var(--danger); }
 .btn-danger:hover:not(:disabled) { background: var(--danger-fill-hi); }
 .btn-sm { padding: 6px 11px; font-size: 12px; border-radius: 8px; }

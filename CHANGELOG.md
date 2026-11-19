@@ -1,5 +1,17 @@
 # 更新日志
 
+## v0.3.5
+
+修复 WebUI 配置项全空、保存后仍为空的严重 bug。
+
+- **现象**：配置页所有项显示为空，改完点保存后再打开还是空。
+- **根因**：`_refresh_cfg()` 每次被调用时用 `context.get_config()` 覆盖 `self.config`。但 `context.get_config()` 返回的是 AstrBot **全局配置**（`data/cmd_config.json`），与插件自己的 `data/config/<plugin>_config.json` 毫无关系——插件配置每轮消息都被全局配置冲成空；`__init__` 里配置的回退值也误用了它。
+- **修复**：
+  - `_refresh_cfg()` 直接返回注入的 `AstrBotConfig`（插件自己的配置对象），不再用全局配置覆盖；`__init__` 回退改为空 dict。
+  - `GET /config` 以 `_conf_schema.json` 为准组装值，缺失键用 schema `default` 填充，页面永不空白。
+  - 保存成功后 `_sync_runtime_config()` 把超时/重试/冷却/队列阈值等标量同步到 router/engine，无需重启即生效。
+- **防再发**：`tests/test_hooks.py` 新增守卫——AST 检测 `_refresh_cfg` 不得调用 `get_config`，并验证返回的是插件配置对象而非全局配置；已验证旧写法会被捕获。自检 core 92 + webui 35 + hooks 7 项全过。
+
 ## v0.3.4
 
 调整按钮交互配色，悬浮变化更柔和。

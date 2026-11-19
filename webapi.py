@@ -656,10 +656,28 @@ def _coerce_value(key: str, value, sch: dict):
 
 def _config(plugin):
     async def handler():
+        plugin._refresh_cfg()
+        schema = _load_conf_schema(plugin)
+        raw = plugin.config
+        # 以 schema 为准组装配置值：缺失的键用 schema.default 填充，
+        # 保证页面即使配置文件缺项也不会全空（default 才是该键的真实生效值）。
+        values: dict[str, Any] = {}
+        from_schema: set[str] = set()
+        for key, sch in schema.items():
+            if key in raw:
+                values[key] = raw.get(key)
+            elif isinstance(sch, dict) and "default" in sch:
+                values[key] = sch["default"]
+                from_schema.add(key)
+        # schema 之外的键也带出来（如历史遗留），但不参与编辑
+        for key, value in raw.items():
+            if key not in schema and key != "config":
+                values[key] = value
         return json_response({
-            "config": {k: v for k, v in plugin.config.items() if k != "config"},
+            "config": values,
             "schema_groups": plugin._CONFIG_GROUPS,
-            "schema": _load_conf_schema(plugin),
+            "schema": schema,
+            "from_default": sorted(from_schema),
         })
     return handler
 
@@ -701,6 +719,7 @@ def _config_save(plugin):
                 logger.error(f"[moe_tts] 配置落盘失败: {e2}（首次: {e}）")
                 return error_response(f"配置已热生效但落盘失败：{e2}", status_code=500)
         plugin._refresh_cfg()
+        plugin._sync_runtime_config()
         logger.info(f"[moe_tts] WebUI 保存配置 {list(coerced)}")
         return json_response({"ok": True, "values": {k: plugin.config.get(k) for k in coerced}})
     return handler

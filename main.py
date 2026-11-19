@@ -88,8 +88,10 @@ class MoeTtsPlugin(Star):
     def __init__(self, context: Context, config: dict | None = None):
         super().__init__(context)
         _reload_sibling_modules()
-        # 保留 AstrBot 注入的原始配置对象（WebUI 保存配置要写回它并 save_config）
-        self._injected_config = config if config is not None else (self.context.get_config() or {})
+        # 保留 AstrBot 注入的插件配置对象（WebUI 保存配置要写回它并 save_config）。
+        # 注意：绝不能用 context.get_config() 回退——那是全局 cmd_config.json，
+        # 与插件自己的 data/config/<plugin>_config.json 无关，会把插件配置冲成空。
+        self._injected_config = config if config is not None else {}
         self.config = self._injected_config
         self._version = _read_version()
 
@@ -222,13 +224,31 @@ class MoeTtsPlugin(Star):
             logger.warning(f"[moe_tts] 联系人同步启动失败（不影响语音功能）: {e}")
 
     def _refresh_cfg(self) -> dict:
-        cfg = self.context.get_config() or {}
-        if isinstance(cfg, dict) and cfg:
-            # 就地更新，保持 self.config 与 self._injected_config 指向同一对象
-            # （WebUI 保存配置写回注入对象时会同步更新这里）
-            self.config.clear()
-            self.config.update(cfg)
+        """返回插件自己的配置对象（AstrBot 注入的 AstrBotConfig，dict 子类）。
+
+        严禁在此处用 context.get_config()：那是全局 cmd_config.json，
+        会把插件配置冲成空——正是「WebUI 配置保存后仍为空」的根因。
+        WebUI 保存写回同一个注入对象，所以这里直接返回即可拿到最新值。
+        """
         return self.config
+
+    def _sync_runtime_config(self) -> None:
+        """把保存后的标量配置同步到已构造的运行时对象（无需重启即生效）。
+
+        config 本身是同一 dict 引用，字典类配置自动生效；但 router/engine
+        在 __init__ 时把一些值读成了标量属性，需要这里显式刷新。
+        """
+        cfg = self.config
+        try:
+            self.router.timeout = int(cfg.get("timeout", 250) or 250)
+            self.router.max_retry = max(0, int(cfg.get("tts_max_retry", 1) or 0))
+            self.router.retry_backoff = float(cfg.get("tts_retry_backoff", 0.5) or 0.5)
+            self.router.cooldown_sec = float(cfg.get("tts_cooldown_sec", 30) or 30)
+            self.router.queue_max_position = int(cfg.get("tts_queue_max_position", 8) or 0)
+            if self.router.adapter:
+                self.router.adapter.timeout = self.router.timeout
+        except Exception as e:  # noqa: BLE001
+            logger.debug(f"[moe_tts] 同步运行时配置失败: {e}")
 
     # ---------- 事件标记 ----------
     def _flag(self, event) -> dict:

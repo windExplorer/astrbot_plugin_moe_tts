@@ -84,6 +84,42 @@ def main():
     else:
         check("钩子辅助方法无参数错误", True)
 
+    # 守卫「_refresh_cfg 不得用全局 context.get_config() 覆盖插件配置」：
+    # 这个 bug 曾导致 WebUI 配置保存后仍显示为空。
+    refresh = extract_methods(src, ["_refresh_cfg"]).get("_refresh_cfg")
+    check("抠到 _refresh_cfg", refresh is not None)
+    if refresh:
+        class Ctx:
+            def get_config(self):
+                return {"global_cmd": "not plugin config"}  # 模拟全局配置
+
+        class P:
+            _refresh_cfg = refresh
+
+        p = P()
+        p.context = Ctx()
+        p.config = {"auto_tts": True, "timeout": 250}  # 插件自己的配置
+        got = p._refresh_cfg()
+        check("_refresh_cfg 返回插件配置不变",
+              got == {"auto_tts": True, "timeout": 250} and p.config is got,
+              f"got={got!r}")
+        # 静态守卫（AST）：_refresh_cfg 的真实调用里不应有 context.get_config(...)
+        # 用 AST 遍历才不会被 docstring/注释里的字样误伤。
+        import ast as _ast
+        tree = _ast.parse(src)
+        cls = next((n for n in tree.body
+                    if isinstance(n, _ast.ClassDef) and n.name == "MoeTtsPlugin"), None)
+        fn = next((n for n in cls.body if isinstance(n, _ast.FunctionDef)
+                   and n.name == "_refresh_cfg"), None) if cls else None
+        bad_calls = []
+        if fn:
+            for node in _ast.walk(fn):
+                if (isinstance(node, _ast.Call) and isinstance(node.func, _ast.Attribute)
+                        and node.func.attr == "get_config"):
+                    bad_calls.append(node.lineno)
+        check("_refresh_cfg 不调用 context.get_config", fn is not None and not bad_calls,
+              f"bad call lines={bad_calls}")
+
     print(f"\nRESULT: PASS={PASS} FAIL={FAIL}")
     return 1 if FAIL else 0
 

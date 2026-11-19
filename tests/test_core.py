@@ -176,8 +176,25 @@ def main():
     asyncio.run(_probe())
     srv.shutdown()
 
+    print("== 联系人初始化烟雾测试（防构造期 TypeError）==")
+    import tempfile as _tf
+    from store import PluginStore
+    from contacts import ContactsScheduler, normalize_friends, normalize_groups
+    with _tf.TemporaryDirectory() as td:
+        st = PluginStore(td)
+        try:
+            sch = ContactsScheduler(context=None, store=st, interval_min=0)
+            check("ContactsScheduler 构造成功", sch.last_result is not None,
+                  "contacts_meta 是属性不是方法")
+            # 验证快照读写链路
+            st.set_contacts([{"id": "1", "name": "好友"}], [{"id": "2", "name": "群"}],
+                            synced_at="2026-01-01 00:00:00", platforms=1)
+            snap = st.contacts_snapshot()
+            check("联系人快照写入/读取", len(snap["friends"]) == 1 and len(snap["groups"]) == 1)
+        except Exception as e:  # noqa: BLE001
+            check("ContactsScheduler 构造成功", False, repr(e))
+
     print("== 联系人字段归一化 ==")
-    from contacts import normalize_friends, normalize_groups
     fs = normalize_friends([
         {"user_id": 10001, "nickname": "小明", "remark": "大明"},
         {"uin": "10002", "nickname": "小红"},

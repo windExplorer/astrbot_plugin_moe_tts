@@ -1,5 +1,14 @@
 # 更新日志
 
+## v0.3.1
+
+修复 v0.3.0 安装即失败的严重 bug。
+
+- **现象**：AstrBot 安装/加载 v0.3.0 时报 `'JsonStore' object is not callable`，插件直接装不上。
+- **根因**：`contacts.py` 的 `ContactsScheduler.__init__` 里把 `store.contacts_meta` 当成方法调用了 `store.contacts_meta()`，但它是 `JsonStore` **实例属性**，实例化即对实例加括号触发 TypeError。v0.3.0 的自检只测了纯函数（normalize_friends/groups），没实例化调度器，所以漏检。
+- **修复**：改为读实例属性 `store.contacts_meta.data`。
+- **防再发**：自检新增「初始化烟雾测试」——真实实例化 `PluginStore` + `ContactsScheduler` 并走一遍联系人快照读写，构造期再出这类错误会被直接捕获。自检 86 项全过。
+
 ## v0.3.0
 
 会话管理支持加载机器人全部群与好友；主题按钮精简。

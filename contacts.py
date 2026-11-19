@@ -158,7 +158,8 @@ class ContactsScheduler:
         self.timeout = float(timeout)
         self._lock = asyncio.Lock()
         self._task: asyncio.Task | None = None
-        self.last_result: dict = dict(store.contacts_meta())
+        # contacts_meta 是 JsonStore 实例属性，取它的 .data（不要写成 contacts_meta()）
+        self.last_result: dict = dict(store.contacts_meta.data)
 
     async def sync_once(self) -> dict:
         async with self._lock:

@@ -42,6 +42,7 @@ from . import store as store_mod
 from . import textutil as textutil_mod
 from . import translator as translator_mod
 from . import tts_engine as engine_mod
+from . import tts_api as tts_api_mod
 from . import webapi as webapi_mod
 from . import avatar as avatar_mod
 from . import contacts as contacts_mod
@@ -49,7 +50,7 @@ from . import contacts as contacts_mod
 PLUGIN_ID = "astrbot_plugin_moe_tts"
 
 _RELOAD_MODULES = [
-    "textutil", "store", "server", "translator", "avatar", "contacts", "tts_engine", "webapi",
+    "textutil", "store", "server", "translator", "avatar", "contacts", "tts_engine", "tts_api", "webapi",
 ]
 _PKG = __package__ or PLUGIN_ID
 
@@ -128,6 +129,9 @@ class MoeTtsPlugin(Star):
             self.config, self.router, self.store, self.translator,
             concurrency=int(self.config.get("tts_concurrency", 1) or 1),
         )
+        # 跨插件语音契约 tts.v1：其它插件通过 star_cls.api 取用（零依赖、失败不抛）。
+        # 挂在 engine 构造之后，确保 api 调用的运行时对象都已就绪。
+        self.api = tts_api_mod.TtsApi(self)
 
         # 每消息标记（防重复 / 关键词触发 / 音色覆盖）
         self._flags: dict[str, dict] = {}

@@ -46,6 +46,10 @@ class SynthesisResult:
     elapsed_ms: int = 0
     queue_position: int = 0
     brackets: str = ""
+    # synthesize 的两个提前返回分支会传 kind=kind；缺这个字段会直接抛
+    # TypeError（"unexpected keyword argument"），把"无可朗读内容"这类正常降级
+    # 变成异常。补一个带默认值的字段即可，其余构造点不受影响。
+    kind: str = "auto"
 
 
 class TtsEngine:

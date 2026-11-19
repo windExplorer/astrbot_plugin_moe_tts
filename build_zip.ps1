@@ -49,6 +49,7 @@ $includeList = @(
     "textutil.py",
     "tts_engine.py",
     "translator.py",
+    "tts_api.py",
     "webapi.py",
     "_conf_schema.json",
     "metadata.yaml",

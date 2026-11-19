@@ -1,5 +1,30 @@
 # 更新日志
 
+## v0.6.0
+
+新增通用跨插件语音契约 `tts.v1`，让其它插件（萌萌日程等）零依赖地调用本插件合成语音。
+
+- **需求**：萌萌日程（mine_chat）的主动语音此前写死复用 CosyVoice 的私有 `engine.synthesize`；
+  语音插件换成萌萌语音后接口全变（返回 `SynthesisResult` 而非单路径、冷却在 `router.in_cooldown`、
+  音色列表是异步 `voices()`），联动全部静默失效。根因是对方**没有对外契约**，只能靠私有属性复用。
+- **方案**：新增顶层模块 `tts_api.py`，定义 `TtsApi` 契约，挂在 `MoeTtsPlugin.api` 上。任何插件
+  通过 `context.get_registered_star("astrbot_plugin_moe_tts").star_cls.api` 取用，与
+  `affinity.v1` 同范式。契约是**通用**的，不绑定某一调用方：
+  - `API_VERSION = "tts.v1"` + `fingerprint()`：调用方可做严格版本校验；
+  - `available()`（同步）：配了服务端 / 不在冷却 / 有可用音色；
+  - `voices()`（异步）：可用音色列表；
+  - `synthesize(text, voice, pre_translated=True)`：返回稳定 dict
+    `{ok, files:[wav路径...], error, chars, segments, elapsed_ms, queue_position}`，
+    **失败只回 `ok=False` 不抛异常**，多段产物全部返回；
+  - `cleanup(path, delay)`：延迟清理产物，无事件循环时用定时器兜底。
+- **顺带修 bug**：`tts_engine.SynthesisResult` 缺 `kind` 字段，但 `synthesize()` 的
+  「无可朗读内容 / 分段后无内容」两个提前返回分支传了 `kind=kind`，会抛
+  `TypeError: unexpected keyword argument 'kind'`——把正常降级变成异常。补上带默认值的字段。
+- **打包/热重载**：`build_zip.ps1` 的 `$includeList` 与 `main.py` 的 `_RELOAD_MODULES`
+  均加入 `tts_api`，避免热更后契约指向旧代码或漏进包。
+- **自检**：新增 `tests/test_tts_api.py`（23 项，假插件驱动，验证版本标识 / available 判定 /
+  失败不抛 / 多段返回 / 单路径兼容 / cleanup）；原有 core 104 + hooks 12 + webui 43 全过。
+
 ## v0.5.6
 
 加上萌系 Logo（用户提供图片），插件列表与 WebUI 统一形象。

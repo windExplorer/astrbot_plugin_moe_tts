@@ -176,6 +176,24 @@ def main():
     asyncio.run(_probe())
     srv.shutdown()
 
+    print("== 联系人字段归一化 ==")
+    from contacts import normalize_friends, normalize_groups
+    fs = normalize_friends([
+        {"user_id": 10001, "nickname": "小明", "remark": "大明"},
+        {"uin": "10002", "nickname": "小红"},
+        {"user_id": "", "nickname": "无效"},
+    ])
+    check("好友归一化数量", len(fs) == 2, str(fs))
+    check("好友备注优先", fs[0]["name"] == "大明", str(fs[0]))
+    check("好友 uin 兼容", fs[1]["id"] == "10002", str(fs[1]))
+    gs = normalize_groups([
+        {"group_id": 123, "group_name": "闲聊群", "member_count": 50},
+        {"group_id": "456", "name": "备用名"},
+    ])
+    check("群归一化数量", len(gs) == 2, str(gs))
+    check("群名 group_name 优先", gs[0]["name"] == "闲聊群", str(gs[0]))
+    check("群名兜底", gs[1]["name"] == "备用名", str(gs[1]))
+
     print(f"\nRESULT: PASS={PASS} FAIL={FAIL}")
     return 1 if FAIL else 0
 

@@ -39,6 +39,8 @@ def register_web_apis(plugin) -> None:
         ("/sessions/delete", _session_delete, ["POST"], "删除会话状态"),
         ("/sessions/clear", _session_clear, ["POST"], "清空会话状态"),
         ("/avatars", _avatars, ["GET"], "批量取用户/群头像（data URI）"),
+        ("/contacts", _contacts, ["GET"], "全量群/好友联系人快照（从 OneBot 同步）"),
+        ("/contacts/sync", _contacts_sync, ["POST"], "手动同步全量群/好友列表"),
         ("/synthesize", _synthesize, ["POST"], "合成试听（返回 WAV data URI）"),
         ("/segment_preview", _segment_preview, ["POST"], "分段试算"),
         ("/servers", _servers, ["GET"], "服务端列表"),
@@ -267,6 +269,22 @@ def _avatars(plugin):
             return json_response({"items": items, "requested": len(ids), "got": len(items)})
         except Exception as e:  # noqa: BLE001
             return error_response(f"头像获取失败: {e}")
+    return handler
+
+
+def _contacts(plugin):
+    async def handler():
+        return json_response(plugin.store.contacts_snapshot())
+    return handler
+
+
+def _contacts_sync(plugin):
+    async def handler():
+        try:
+            result = await plugin.contacts_scheduler.sync_once()
+            return json_response(result)
+        except Exception as e:  # noqa: BLE001
+            return error_response(f"同步联系人失败: {e}")
     return handler
 
 

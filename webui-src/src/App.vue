@@ -85,12 +85,11 @@ const toastIcon = { ok: CheckCircle2, err: AlertCircle, info: Info };
         </div>
       </nav>
       <div class="side-foot">
-        <button class="theme-btn" @click="toggleTheme" :title="theme === 'dark' ? '切换到浅色主题' : '切换到深色主题'">
-          <Sun v-if="theme === 'dark'" :size="16" />
-          <Moon v-else :size="16" />
-          <span>{{ theme === 'dark' ? '浅色主题' : '深色主题' }}</span>
-        </button>
         <span class="version-pill"><span class="dot"></span> {{ PLUGIN_VERSION }}</span>
+        <button class="theme-btn" @click="toggleTheme" :title="theme === 'dark' ? '切换到浅色主题' : '切换到深色主题'">
+          <Sun v-if="theme === 'dark'" :size="15" />
+          <Moon v-else :size="15" />
+        </button>
       </div>
     </aside>
 
@@ -136,14 +135,15 @@ const toastIcon = { ok: CheckCircle2, err: AlertCircle, info: Info };
 <style scoped>
 .text-ok { color: var(--ok); }
 .text-danger { color: var(--danger); }
+.side-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .theme-btn {
-  display: flex; align-items: center; gap: 9px; width: 100%;
-  padding: 9px 12px; margin-bottom: 10px; border-radius: 10px;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; flex: 0 0 30px; border-radius: 9px;
   border: 1px solid var(--border); background: var(--fill);
-  color: var(--muted); cursor: pointer; font-size: 12.5px; font-family: inherit;
-  transition: background .2s, color .2s, border-color .2s;
+  color: var(--muted); cursor: pointer;
+  transition: background .2s, color .2s, border-color .2s, transform .2s;
 }
-.theme-btn:hover { background: var(--hover-2); color: var(--text); border-color: var(--border-hi); }
+.theme-btn:hover { background: var(--hover-2); color: var(--brand-2); border-color: var(--border-hi); transform: rotate(-15deg); }
 .theme-btn-mobile { display: none; }
 @media (max-width: 900px) { .theme-btn-mobile { display: inline-flex; flex: 0 0 34px; } }
 </style>

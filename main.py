@@ -44,11 +44,12 @@ from . import translator as translator_mod
 from . import tts_engine as engine_mod
 from . import webapi as webapi_mod
 from . import avatar as avatar_mod
+from . import contacts as contacts_mod
 
 PLUGIN_ID = "astrbot_plugin_moe_tts"
 
 _RELOAD_MODULES = [
-    "textutil", "store", "server", "translator", "avatar", "tts_engine", "webapi",
+    "textutil", "store", "server", "translator", "avatar", "contacts", "tts_engine", "webapi",
 ]
 _PKG = __package__ or PLUGIN_ID
 
@@ -96,6 +97,12 @@ class MoeTtsPlugin(Star):
         self.store = store_mod.PluginStore(data_dir)
         self.avatars = avatar_mod.AvatarCache(os.path.join(data_dir, "avatars"))
         self._group_name_pending: set = set()
+        # 全量群/好友联系人同步（后台定时 + WebUI 手动）
+        self.contacts_scheduler = contacts_mod.ContactsScheduler(
+            self.context, self.store,
+            interval_min=int(self.config.get("contacts_sync_interval_min", 30) or 30),
+            timeout=float(self.config.get("contacts_sync_timeout_sec", 15) or 15),
+        )
         self._server_file = os.path.join(data_dir, "servers.json")
         self._translate_file = os.path.join(data_dir, "translate_config.json")
 
@@ -190,6 +197,7 @@ class MoeTtsPlugin(Star):
             "分段": ["split_by_newline", "newline_min_len", "segment_len", "segment_first_len",
                    "segment_punct", "segment_merge", "max_text_len"],
             "容错": ["tts_concurrency", "tts_max_retry", "tts_retry_backoff", "tts_cooldown_sec"],
+            "联系人同步": ["contacts_sync_interval_min", "contacts_sync_timeout_sec"],
         }
 
     async def initialize(self):
@@ -207,6 +215,11 @@ class MoeTtsPlugin(Star):
             )
         else:
             logger.warning(f"[moe_tts] 就绪 v{self._version} 但未配置服务端，请在 WebUI 添加")
+        # 启动后台联系人同步（延时首拉，不阻塞初始化）
+        try:
+            self.contacts_scheduler.start()
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"[moe_tts] 联系人同步启动失败（不影响语音功能）: {e}")
 
     def _refresh_cfg(self) -> dict:
         cfg = self.context.get_config() or {}
@@ -684,6 +697,10 @@ class MoeTtsPlugin(Star):
                 pass
         try:
             await self.avatars.close()
+        except Exception:
+            pass
+        try:
+            await self.contacts_scheduler.stop()
         except Exception:
             pass
         logger.info("[moe_tts] 插件已卸载")

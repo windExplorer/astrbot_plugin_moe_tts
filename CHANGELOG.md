@@ -1,5 +1,12 @@
 # 更新日志
 
+## v0.3.0
+
+会话管理支持加载机器人全部群与好友；主题按钮精简。
+
+- **全量联系人同步**（参考 `astrbot_plugin_moe_permission`）：新增 `contacts.py`，从 aiocqhttp(OneBot v11) 的 `get_group_list` / `get_friend_list` 拉取全部群和好友，落本地 `contacts.json` 快照（离线可读、WebUI 秒开）。后台定时同步（默认 30 分钟，`contacts_sync_interval_min` 可配/可关）+ WebUI「同步列表」手动触发，共用互斥锁。会话管理页以全量联系人为基础叠加语音状态：有状态的按活跃排前并显示开关，未启用的可一键开启；群/好友都带头像（CDN 后端抓取+缓存）、群名/昵称。只支持 aiocqhttp，其它平台跳过，失败写 `meta.error` 展示、不影响语音。
+- **主题按钮**：去掉文字，改为纯图标，与版本号放同一行，hover 带旋转微动效。
+
 ## v0.2.1
 
 修复服务端未连通却显示「在线」的判定 bug。

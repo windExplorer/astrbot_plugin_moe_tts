@@ -70,6 +70,12 @@ class PluginStore:
         self.voices = JsonStore(os.path.join(data_dir, "voices.json"), {})
         # 默认音色覆盖（WebUI 设置，优先于配置项）
         self.default_voice = JsonStore(os.path.join(data_dir, "default_voice.json"), {"name": ""})
+        # 全量联系人快照：从 aiocqhttp(OneBot) 拉取的群/好友列表，离线也能读。
+        self.contacts = JsonStore(os.path.join(data_dir, "contacts.json"),
+                                  {"friends": [], "groups": []})
+        self.contacts_meta = JsonStore(os.path.join(data_dir, "contacts_meta.json"),
+                                       {"synced_at": "", "platforms": 0, "friends": 0, "groups": 0,
+                                        "error": ""})
         # 服务端音色快照：从服务端 /voices 同步后落盘，离线也能读。
         # {name: {name, file, text, language, enabled, markup, source, synced_at}}
         self.server_voices = JsonStore(os.path.join(data_dir, "server_voices.json"), {})
@@ -199,4 +205,27 @@ class PluginStore:
         return {
             "voices": list(self.server_voices.data.values()),
             "meta": dict(self.server_voices_meta.data),
+        }
+
+    # ---------- 全量联系人快照 ----------
+    def set_contacts(self, friends: list[dict], groups: list[dict], *,
+                     synced_at: str = "", platforms: int = 0) -> None:
+        self.contacts.data = {
+            "friends": list(friends or []),
+            "groups": list(groups or []),
+        }
+        self.contacts.save()
+        self.contacts_meta.set("synced_at", synced_at, save=False)
+        self.contacts_meta.set("platforms", int(platforms), save=False)
+        self.contacts_meta.set("friends", len(friends or []), save=False)
+        self.contacts_meta.set("groups", len(groups or []), save=False)
+        self.contacts_meta.set("error", "", save=False)
+        self.contacts_meta.save()
+
+    def contacts_snapshot(self) -> dict:
+        data = self.contacts.data
+        return {
+            "friends": list(data.get("friends") or []) if isinstance(data, dict) else [],
+            "groups": list(data.get("groups") or []) if isinstance(data, dict) else [],
+            "meta": dict(self.contacts_meta.data),
         }

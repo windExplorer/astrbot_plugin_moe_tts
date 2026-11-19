@@ -23,6 +23,7 @@ const labels: Record<string, string> = {
   segment_len: "分段字数", segment_first_len: "首段字数", segment_punct: "分段符号",
   segment_merge: "分段合并发送", max_text_len: "单段硬上限", tts_concurrency: "合成并发数",
   tts_max_retry: "失败重试次数", tts_retry_backoff: "重试退避基数", tts_cooldown_sec: "失败冷却时长",
+  contacts_sync_interval_min: "联系人同步间隔（分钟）", contacts_sync_timeout_sec: "联系人同步超时（秒）",
 };
 const hints: Record<string, string> = {
   timeout: "TaskHub 建议 ≥250s（排队120+推理120）；直连网关可按需调小",

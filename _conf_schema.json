@@ -231,5 +231,18 @@
     "description": "Qwen3 极速克隆模式，无需参考文本。",
     "hint": "仅 tts_serve 直连时生效；TaskHub 中转站忽略此项。",
     "default": true
+  },
+  "contacts_sync_interval_min": {
+    "type": "int",
+    "title": "联系人同步间隔（分钟）",
+    "description": "后台自动从机器人拉取全量群/好友列表的间隔。",
+    "hint": "默认 30 分钟；0=关闭自动同步（仍可在 WebUI 手动点同步）。仅 aiocqhttp/OneBot v11 有效。",
+    "default": 30
+  },
+  "contacts_sync_timeout_sec": {
+    "type": "int",
+    "title": "联系人同步超时（秒）",
+    "description": "单次 get_friend_list / get_group_list 的超时。",
+    "default": 15
   }
 }

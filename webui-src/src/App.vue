@@ -156,7 +156,7 @@ const toastIcon = { ok: CheckCircle2, err: AlertCircle, info: Info };
   color: var(--muted); cursor: pointer;
   transition: background .2s, color .2s, border-color .2s, transform .2s;
 }
-.theme-btn:hover { background: var(--hover-2); color: var(--brand-2); border-color: var(--border-hi); transform: rotate(-15deg); }
+.theme-btn:hover { background: var(--btn-hover); color: var(--brand-2); border-color: var(--border-hi); transform: rotate(-15deg); }
 .theme-btn-mobile { display: none; }
 @media (max-width: 900px) { .theme-btn-mobile { display: inline-flex; flex: 0 0 34px; } }
 </style>

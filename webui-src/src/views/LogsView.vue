@@ -15,7 +15,7 @@ const filtered = computed(() => {
   let list = events.value;
   if (filter.value !== "all") list = list.filter((e) => (filter.value === "ok") === e.ok);
   const k = keyword.value.trim().toLowerCase();
-  if (k) list = list.filter((e) => (e.msg + e.origin + e.voice + (e.text || "")).toLowerCase().includes(k));
+  if (k) list = list.filter((e) => (e.msg + e.origin + e.voice + (e.text || "") + (e.detail || "")).toLowerCase().includes(k));
   return list;
 });
 const successRate = computed(() => stats.value.total ? Math.round(stats.value.ok / stats.value.total * 100) : 0);
@@ -92,6 +92,7 @@ onMounted(load);
                 · {{ textStateLabel(e.text_state) }}
               </span>
             </div>
+            <div v-if="e.detail" class="log-detail" :title="e.detail">{{ e.detail }}</div>
             <div v-if="e.text" class="log-text" :title="e.text">{{ e.text }}</div>
           </div>
         </div>
@@ -109,5 +110,9 @@ onMounted(load);
   background: var(--fill); color: var(--text); font-size: 12px; line-height: 1.5;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
   overflow: hidden; word-break: break-all;
+}
+.log-detail {
+  margin-top: 5px; color: #c2872b; font-size: 11px; line-height: 1.45;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 </style>

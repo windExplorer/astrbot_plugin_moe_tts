@@ -501,18 +501,45 @@ class MoeTtsPlugin(Star):
         res = None
         ok = False
         msg = ""
+        # detail 写「语音/文字各发了多少、失败原因、取消发生在哪一步」——
+        # 单看 text_state 分不出「0 段」是没文字可发还是发送失败，也看不出取消时语音没发出来。
+        send_errors: list[str] = []
+        voice_ok = 0
+        voice_fail = 0
+        text_ok = 0
+        text_fail = 0
+        stage = "合成"  # 取消/异常发生在哪一步
+
+        def detail() -> str:
+            parts = [f"语音 {voice_ok} 条发出"]
+            if voice_fail:
+                parts.append(f"{voice_fail} 条失败")
+            if not text_in_chain:
+                parts.append(f"文字 {text_ok} 条发出")
+                if text_fail:
+                    parts.append(f"{text_fail} 条失败")
+            else:
+                parts.append("文字随原消息发送")
+            if send_errors:
+                parts.append("错误：" + "；".join(send_errors[:2]))
+            return " · ".join(parts)
+
         try:
+            stage = "合成"
             res = await self.engine.synthesize(full, voice, kind="auto", origin=event.unified_msg_origin)
             ok = res.ok
             msg = res.error or "合成成功"
             if not ok:
                 if "繁忙" in res.error:
-                    await self._realtime_send(event, [Comp.Plain(SERVER_BUSY_TIP)])
+                    await self._realtime_send(event, [Comp.Plain(SERVER_BUSY_TIP)], send_errors)
                 else:
-                    await self._realtime_send(event, [Comp.Plain(SERVER_DOWN_TIP)])
+                    await self._realtime_send(event, [Comp.Plain(SERVER_DOWN_TIP)], send_errors)
                 # 文字兜底：从链移除时必须补发完整原文
-                if not text_in_chain and await self._realtime_send(event, [Comp.Plain(full)]):
-                    text_state, resent = "resent:1", 1
+                if not text_in_chain:
+                    if await self._realtime_send(event, [Comp.Plain(full)], send_errors):
+                        text_state, text_ok = "resent:1", 1
+                    else:
+                        text_state, text_fail = "send_failed", 1
                 return
             self._sent_texts[re.sub(r"\s+", "", full)] = time.time()
             # 语音侧 _prepare_text 会剥离括号，段数常少于「完整原文」的段数；
@@ -523,43 +550,59 @@ class MoeTtsPlugin(Star):
             # 语音按配置合成（短行可并成一条），文字仍按换行各发一个气泡。
             text_segs = textutil_mod.split_text_by_newline(full) if need_text else []
             after = bool(cfg.get("text_after_voice", True))
+            stage = "发送"
             for i in range(max(len(res.files), len(text_segs))):
                 path = res.files[i] if i < len(res.files) else None
                 seg_text = self._seg_text_for(full, i, len(text_segs), cfg, text_segs) if i < len(text_segs) else ""
                 if seg_text and not after:
-                    if await self._realtime_send(event, [Comp.Plain(seg_text)]):
-                        resent += 1
+                    if await self._realtime_send(event, [Comp.Plain(seg_text)], send_errors):
+                        text_ok += 1
+                    else:
+                        text_fail += 1
                 if path:
-                    await self._realtime_send(event, [Comp.Record(file=path, url=path)])
+                    if await self._realtime_send(event, [Comp.Record(file=path, url=path)], send_errors):
+                        voice_ok += 1
+                    else:
+                        voice_fail += 1
                 if seg_text and after:
-                    if await self._realtime_send(event, [Comp.Plain(seg_text)]):
-                        resent += 1
+                    if await self._realtime_send(event, [Comp.Plain(seg_text)], send_errors):
+                        text_ok += 1
+                    else:
+                        text_fail += 1
                 if path:
                     self.engine.cleanup_file(path, delay=600)
+            resent = text_ok
             if need_text:
-                text_state = f"resent:{resent}"
+                text_state = f"resent:{text_ok}"
+            if text_fail and not text_ok:
+                text_state = "send_failed"
             # 括号内容单独补发：仅 voice_only 模式需要。
             # both 模式下正文补发的是完整原文（含括号），再补发会重复；
             # voice_only 模式正文完全不发，才需单独补发让语气描写可见。
             if res.brackets and send_mode == "voice_only" and not text_in_chain:
-                await self._realtime_send(event, [Comp.Plain(f"（{res.brackets}）")])
+                await self._realtime_send(event, [Comp.Plain(f"（{res.brackets}）")], send_errors)
         except asyncio.CancelledError:
-            msg = "任务被新消息取消"
-            logger.info("[moe_tts] 合成任务被新消息取消")
-            # 文字已从结果链移除，取消时必须补发，否则该条消息文字永久丢失
+            msg = f"任务在{stage}阶段被新消息取消"
+            logger.info(f"[moe_tts] {msg}")
+            # 取消时语音必然没发完（合成被中断或发送被打断），文字已从结果链移除，
+            # 必须补发，否则该条消息文字永久丢失。detail 里说清语音没发出来是取消导致的。
+            if voice_ok == 0:
+                send_errors.append(f"语音未发出（{stage}阶段被取消）")
             if not text_in_chain:
-                if await self._realtime_send(event, [Comp.Plain(full)]):
-                    text_state, resent = "cancelled", 1
+                if await self._realtime_send(event, [Comp.Plain(full)], send_errors):
+                    text_state, text_ok = "cancelled", 1
                 else:
-                    text_state = "send_failed"
+                    text_state, text_fail = "send_failed", 1
         except Exception as e:  # noqa: BLE001
             msg = str(e)[:300]
-            logger.warning(f"[moe_tts] 后台合成异常: {e}")
+            logger.warning(f"[moe_tts] 后台合成异常（{stage}阶段）: {e}")
+            if voice_ok == 0:
+                send_errors.append(f"语音未发出（{stage}阶段异常）")
             if not text_in_chain:
-                if await self._realtime_send(event, [Comp.Plain(full)]):
-                    text_state, resent = "resent:1(error)", 1
+                if await self._realtime_send(event, [Comp.Plain(full)], send_errors):
+                    text_state, text_ok = "resent:1(error)", 1
                 else:
-                    text_state = "send_failed"
+                    text_state, text_fail = "send_failed", 1
         finally:
             self.store.log(
                 ok=ok, msg=msg or "合成成功", origin=event.unified_msg_origin,
@@ -568,7 +611,7 @@ class MoeTtsPlugin(Star):
                 elapsed_ms=res.elapsed_ms if res else 0,
                 queue_position=res.queue_position if res else 0,
                 kind="auto", segments=res.segments if res else 0,
-                text=full, text_state=text_state,
+                text=full, text_state=text_state, detail=detail(),
             )
 
     def _seg_text_for(self, full: str, index: int, total: int, cfg: dict,
@@ -590,7 +633,7 @@ class MoeTtsPlugin(Star):
             return parts[index]
         return ""
 
-    async def _realtime_send(self, event, chain) -> bool:
+    async def _realtime_send(self, event, chain, errors: list | None = None) -> bool:
         try:
             # context.send_message() 要的是 MessageChain 对象（内部访问 .chain），
             # 不能直接传 list[Component]，否则报 'list' object has no attribute 'chain'
@@ -600,6 +643,8 @@ class MoeTtsPlugin(Star):
             return True
         except Exception as e:  # noqa: BLE001
             logger.warning(f"[moe_tts] 发送消息失败: {e}")
+            if errors is not None:
+                errors.append(str(e)[:120])
             return False
 
     # ---------- 指令 ----------

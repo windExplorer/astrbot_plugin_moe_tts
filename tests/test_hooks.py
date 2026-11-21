@@ -197,6 +197,16 @@ def main():
     check("文字段走独立按换行分段",
           "split_text_by_newline" in dtts_src,
           "文字气泡按原文换行逐段发，语音才按配置合并短行")
+    # 守卫「发送原因写入日志」：detail 必须统计语音/文字条数，并记录失败原因与取消阶段
+    check("日志 detail 记录发送统计",
+          "voice_ok" in dtts_src and "text_ok" in dtts_src and "detail()" in dtts_src,
+          "任务日志要说清语音/文字各发了几条")
+    check("取消/失败写明语音未发原因",
+          "语音未发出" in dtts_src and "stage" in dtts_src,
+          "被取消时要说明语音为何没发出来（合成/发送阶段）")
+    check("_realtime_send 收集失败原因",
+          "errors.append" in open(MAIN, encoding="utf-8").read(),
+          "发送失败要把异常原因回填到任务日志")
 
     # 守卫「语音概率」：概率判定必须存在且只作用于非 want（明确关键词触发不抽概率）
     src_full = open(MAIN, "r", encoding="utf-8").read()

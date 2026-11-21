@@ -132,7 +132,7 @@ export interface Overview {
 export interface EventItem {
   time: string; ts: number; ok: boolean; msg: string; origin: string; voice: string;
   chars: number; elapsed_ms: number; queue_position: number; kind: string; segments: number;
-  text?: string; text_state?: string;
+  text?: string; text_state?: string; detail?: string;
 }
 export interface Voice { name: string; file: string; text: string; language: string; enabled: boolean; markup?: boolean; source: string }
 export interface Server { index: number; name: string; type: string; url: string; enabled: boolean; timeout: number }

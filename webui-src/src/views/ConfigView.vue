@@ -107,7 +107,7 @@ function reset() { config.value = JSON.parse(JSON.stringify(original.value)); to
 </script>
 
 <template>
-  <div class="stack">
+  <div class="stack" :class="{ 'with-save-float': dirty }">
     <div class="card" style="background:linear-gradient(100deg,var(--seg-bg),transparent);border-color:var(--seg-border)">
       <div class="row wrap">
         <Info :size="18" color="var(--brand-2)" />
@@ -119,14 +119,12 @@ function reset() { config.value = JSON.parse(JSON.stringify(original.value)); to
       </div>
     </div>
 
-    <!-- 保存栏 -->
-    <div class="card" v-if="dirty" style="position:sticky;top:8px;z-index:5;border-color:var(--item-active-border);background:var(--seg-bg)">
-      <div class="row wrap">
-        <span style="font-size:13px;color:var(--brand-soft);font-weight:600">有未保存的改动</span>
-        <span class="grow"></span>
-        <button class="btn btn-sm" @click="reset">撤销</button>
-        <button class="btn btn-primary btn-sm" :disabled="saving" @click="save"><Save :size="14" /> {{ saving ? '保存中…' : '保存更改' }}</button>
-      </div>
+    <!-- 悬浮保存条：有未保存改动时固定在视口底部，滚动到任意位置都能保存 -->
+    <div v-if="dirty" class="save-float">
+      <span style="font-size:13px;color:var(--brand-soft);font-weight:600;white-space:nowrap">有未保存的改动</span>
+      <span class="grow"></span>
+      <button class="btn btn-sm" @click="reset">撤销</button>
+      <button class="btn btn-primary btn-sm" :disabled="saving" @click="save"><Save :size="14" /> {{ saving ? '保存中…' : '保存更改' }}</button>
     </div>
 
     <div class="card">
@@ -194,3 +192,37 @@ function reset() { config.value = JSON.parse(JSON.stringify(original.value)); to
     </template>
   </div>
 </template>
+
+<style scoped>
+.with-save-float { padding-bottom: 96px; }
+@media (max-width: 900px) { .with-save-float { padding-bottom: 130px; } }
+.save-float {
+  position: fixed;
+  right: 30px;
+  bottom: 26px;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: min(440px, calc(100vw - 32px));
+  padding: 12px 16px;
+  border: 1px solid var(--item-active-border);
+  border-radius: 14px;
+  background: var(--surface-solid);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, .28);
+  animation: saveFloatIn .25s ease both;
+}
+@keyframes saveFloatIn {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (max-width: 900px) {
+  .save-float {
+    left: 16px;
+    right: 16px;
+    bottom: calc(64px + env(safe-area-inset-bottom) + 12px);
+    width: auto;
+  }
+}
+</style>

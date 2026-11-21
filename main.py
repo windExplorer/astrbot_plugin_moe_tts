@@ -683,15 +683,20 @@ class MoeTtsPlugin(Star):
         yield event.plain_result("🔇 已关闭本会话的自动语音，改用文字回复～")
 
     def _card_comps(self, title: str, rows: list[tuple[str, str]], *,
-                    subtitle: str = "", footnote: str = "") -> list | None:
-        """指令卡片的消息组件；配置关闭或渲染失败时返回 None 让调用方发文本。"""
+                    subtitle: str = "", footnote: str = "",
+                    renderer=None, **render_kw) -> list | None:
+        """指令卡片的消息组件；配置关闭或渲染失败时返回 None 让调用方发文本。
+
+        renderer 缺省为 render_kv_card；音色卡传 render_voices_card 走三列网格。
+        """
         if not bool(self.config.get("command_card", True)):
             return None
         try:
-            png = card_mod.render_kv_card(
+            render = renderer or card_mod.render_kv_card
+            png = render(
                 title, rows, subtitle=subtitle, footnote=footnote,
                 font_path=str(self.config.get("card_font_path", "") or ""),
-                data_dir=self._data_dir(),
+                data_dir=self._data_dir(), **render_kw,
             )
             return [Comp.Image.fromBytes(png)] if png else None
         except Exception as e:  # noqa: BLE001
@@ -705,14 +710,15 @@ class MoeTtsPlugin(Star):
         if not name:
             cur = self.store.voice_for(event.unified_msg_origin) or self.engine.effective_default_voice(voices)
             cur_label = display_mod.strip_voice_ext(cur) or "未设置"
-            rows = [("当前音色", cur_label)] + [
-                (f"· {display_mod.strip_voice_ext(v['name'])}", display_mod.language_display(v.get("language", "")))
+            voice_rows = [
+                (display_mod.strip_voice_ext(v["name"]), display_mod.language_display(v.get("language", "")))
                 for v in enabled
             ]
             comps = self._card_comps(
-                "音色列表", rows,
+                "音色列表", voice_rows,
                 subtitle=f"当前：{cur_label} · 共 {len(enabled)} 个",
                 footnote="/语音音色 <名字> 切换，可不带文件后缀",
+                renderer=card_mod.render_voices_card, current=cur_label,
             )
             if comps:
                 yield event.chain_result(comps)

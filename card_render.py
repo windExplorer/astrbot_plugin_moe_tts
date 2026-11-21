@@ -30,7 +30,9 @@ TITLE_SIZE = 38
 BODY_SIZE = 26
 LABEL_SIZE = 24
 FOOT_SIZE = 20
-MAX_ROWS = 16  # 音色很多时截断，避免卡片过长
+MAX_ROWS = 16  # kv 卡行数上限
+VOICE_COLS = 3  # 音色卡一行几个
+MAX_VOICES = 60  # 音色卡方块上限，避免卡片过长
 
 CARD_BG = (255, 255, 255)
 ROW_BG = (247, 248, 252)
@@ -134,6 +136,79 @@ def render_kv_card(
             d.text((W - PAD - 20 - (vb[2] - vb[0]), y + (ROW_H - BODY_SIZE) // 2 - 2),
                    val, font=f_body, fill=TEXT_BODY)
             y += ROW_H + ROW_GAP
+
+        foot_y = h - FOOT_H
+        d.rectangle((0, foot_y, W, h), fill=FOOT_BG)
+        d.text((PAD, foot_y + (FOOT_H - FOOT_SIZE) // 2 - 2),
+               _clip(d, footnote, f_foot, W - 2 * PAD), font=f_foot, fill=TEXT_MUTED)
+
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        return buf.getvalue()
+    except Exception:
+        return None
+
+
+def render_voices_card(
+    title: str,
+    voices: list[tuple[str, str]],
+    *,
+    current: str = "",
+    subtitle: str = "",
+    footnote: str = "",
+    font_path: str = "",
+    data_dir: str = "",
+) -> bytes | None:
+    """音色列表专用卡：一行 VOICE_COLS 个方块，每块显示音色名 + 语种。
+
+    voices 为 (音色名, 语种) 列表；current 匹配名字时高亮该块。失败返回 None。
+    """
+    if Image is None:
+        return None
+    try:
+        f_title = _font(TITLE_SIZE, font_path, data_dir)
+        f_name = _font(24, font_path, data_dir)
+        f_lang = _font(19, font_path, data_dir)
+        f_sub = _font(BODY_SIZE, font_path, data_dir)
+        f_foot = _font(FOOT_SIZE, font_path, data_dir)
+        if not (f_title and f_name and f_lang and f_sub and f_foot):
+            return None
+
+        shown = list(voices[:MAX_VOICES])
+        cell_h = 84
+        gap = 12
+        cell_w = (W - 2 * PAD - gap * (VOICE_COLS - 1)) // VOICE_COLS
+        rows = (len(shown) + VOICE_COLS - 1) // VOICE_COLS
+        body_h = rows * (cell_h + gap) if rows else 0
+        h = HEAD_H + body_h + gap + FOOT_H
+        img = Image.new("RGB", (W, h), CARD_BG)
+        d = ImageDraw.Draw(img)
+
+        for y in range(HEAD_H):
+            t = y / max(1, HEAD_H - 1)
+            c = tuple(int(HEAD_TOP[i] * (1 - t) + HEAD_BOTTOM[i] * t) for i in range(3))
+            d.line([(0, y), (W, y)], fill=c)
+        d.rounded_rectangle((0, 0, W - 1, h - 1), radius=RADIUS, outline=BORDER, width=2)
+        d.text((PAD, 30), title, font=f_title, fill=TEXT_DARK)
+        if subtitle:
+            d.text((PAD, 84), subtitle, font=f_sub, fill=ACCENT)
+
+        for i, (name, lang) in enumerate(shown):
+            col = i % VOICE_COLS
+            row = i // VOICE_COLS
+            x0 = PAD + col * (cell_w + gap)
+            y0 = HEAD_H + gap + row * (cell_h + gap)
+            active = bool(current) and name == current
+            fill = (252, 231, 243) if active else ROW_BG
+            outline = ACCENT if active else BORDER
+            d.rounded_rectangle((x0, y0, x0 + cell_w, y0 + cell_h), radius=14,
+                                fill=fill, outline=outline, width=2 if active else 1)
+            name_text = _clip(d, name, f_name, cell_w - 32)
+            d.text((x0 + 16, y0 + 14), name_text, font=f_name,
+                   fill=ACCENT if active else TEXT_DARK)
+            if lang:
+                d.text((x0 + 16, y0 + 52), _clip(d, lang, f_lang, cell_w - 32),
+                       font=f_lang, fill=ACCENT if active else TEXT_MUTED)
 
         foot_y = h - FOOT_H
         d.rectangle((0, foot_y, W, h), fill=FOOT_BG)

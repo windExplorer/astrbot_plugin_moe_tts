@@ -108,6 +108,16 @@ def main():
               repr(_png[:8]) if _png else "None")
     except Exception as e:
         check("卡片渲染出 PNG", False, repr(e))
+    from card_render import render_voices_card, VOICE_COLS
+    check("音色卡一行 3 个", VOICE_COLS == 3)
+    try:
+        _vp = render_voices_card("音色列表",
+                                 [("卡提希娅", "中文"), ("千早爱音", "日语"), ("ad学姐", "中文"), ("桑多涅", "日语")],
+                                 current="卡提希娅", subtitle="当前：卡提希娅 · 共 4 个")
+        check("音色网格卡渲染出 PNG", bool(_vp) and _vp[:8] == b"\x89PNG\r\n\x1a\n",
+              repr(_vp[:8]) if _vp else "None")
+    except Exception as e:
+        check("音色网格卡渲染出 PNG", False, repr(e))
 
     print("== 重复折叠 ==")
     _dup = "好嘞，我这就给你画一张超好看的专属画像吧！"

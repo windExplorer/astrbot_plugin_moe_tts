@@ -232,6 +232,9 @@ def main():
     check("卡片用 chain_result 发出",
           "yield event.chain_result(comps)" in src_full,
           "yield 裸 Comp.Image 不会被框架 set_result，指令会没反应")
+    check("音色卡走三列网格渲染",
+          "renderer=card_mod.render_voices_card" in src_full,
+          "音色列表应一行 3 个，不能复用单行 kv 卡")
     check("新模块进热重载列表",
           '"display"' in src_full and '"card_render"' in src_full,
           "display/card_render 必须加入 _RELOAD_MODULES")

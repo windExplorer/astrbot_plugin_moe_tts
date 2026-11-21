@@ -16,9 +16,10 @@ const keyword = ref("");
 const labels: Record<string, string> = {
   servers: "服务端列表", timeout: "请求超时（秒）", tts_queue_max_position: "排队阈值",
   fast_clone: "极速克隆", default_voice: "默认音色", voices: "音色备注",
-  auto_tts: "自动语音", tts_scope: "语音范围", enable_llm_tool: "启用 LLM 工具",
+  auto_tts: "自动语音", tts_probability: "语音触发概率（%）", tts_scope: "语音范围", enable_llm_tool: "启用 LLM 工具",
   enable_user_trigger: "启用关键词触发", trigger_keywords: "触发关键词", text_keywords: "纯文字关键词",
   blocklist: "不转语音名单", allowlist: "仅名单内转语音", send_mode: "发送方式",
+  command_card: "指令回卡片（关=发文字）", card_font_path: "卡片字体路径",
   skip_bracket_tts: "括号不朗读", auto_breath: "自动标点换气", auto_effect: "关键词音效",
   effect_intensity: "音效密度", split_by_newline: "优先按换行分段", newline_min_len: "换行段最小字数",
   segment_len: "分段字数", segment_first_len: "首段字数", segment_punct: "分段符号",

@@ -111,7 +111,7 @@ const toastIcon = { ok: CheckCircle2, err: AlertCircle, info: Info };
     </aside>
 
     <!-- 主内容 -->
-    <main class="main">
+    <main class="main" :class="{ 'main-full': current === 'logs' }">
       <header class="page-head anim-up">
         <div class="row" style="justify-content:space-between;align-items:flex-start">
           <div>

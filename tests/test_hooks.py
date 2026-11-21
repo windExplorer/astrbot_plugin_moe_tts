@@ -179,6 +179,20 @@ def main():
     check("括号补发仅限 voice_only", bracket_guarded,
           "both 模式正文已含括号，不能再单独补发")
 
+    # 守卫「文字补发不按语音段数截断」：
+    # 语音侧剥括号后段数常少于完整原文，旧实现把 _seg_text_for 的 total
+    # 传成 len(res.files)，尾部文字（括号描写段 + 末段）永远发不出去。
+    dtts_src = _ast.unparse(dtts) if dtts else ""
+    check("文字段数不按语音段数截断",
+          "len(text_segs)" in dtts_src and "_seg_text_for(full, i, len(res.files)" not in dtts_src,
+          "补发必须按原文分段发完，不能按语音段数截断")
+    cancel_blocks = [n for n in _ast.walk(dtts)
+                     if isinstance(n, _ast.ExceptHandler)
+                     and "CancelledError" in (_ast.unparse(n.type) if n.type else "")] if dtts else []
+    check("取消时补发文字",
+          bool(cancel_blocks) and all("Plain(full)" in _ast.unparse(b) for b in cancel_blocks),
+          "取消时文字已从结果链移除，必须补发完整原文")
+
     print(f"\nRESULT: PASS={PASS} FAIL={FAIL}")
     return 1 if FAIL else 0
 

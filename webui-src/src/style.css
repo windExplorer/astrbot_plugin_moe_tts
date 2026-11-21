@@ -189,6 +189,9 @@ body {
 .dot.danger { background: var(--danger); box-shadow: 0 0 8px var(--danger); }
 
 .main { flex: 1; min-width: 0; padding: 26px 30px 60px; max-width: 1280px; }
+/* 任务日志：整页不滚，仅列表区滚动，顶部统计与筛选栏固定 */
+.main.main-full { height: 100dvh; display: flex; flex-direction: column; overflow: hidden; padding-bottom: 20px; }
+.main.main-full > .page-head { flex: 0 0 auto; }
 
 /* 页面标题区：随页面滚动固定在顶部（负 margin 让毛玻璃铺满 main 宽度） */
 .page-head {
@@ -367,6 +370,7 @@ body {
 @media (max-width: 900px) {
   .sidebar { display: none; }
   .main { padding: 20px 16px 100px; max-width: 100%; }
+  .main.main-full { padding-bottom: calc(64px + env(safe-area-inset-bottom)); }
   .page-head { margin: -20px -16px 18px; padding: 16px 16px 12px; }
   .toolbar-sticky { top: 82px; }
   .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }

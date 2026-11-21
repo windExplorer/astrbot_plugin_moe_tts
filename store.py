@@ -146,12 +146,15 @@ class PluginStore:
     # ---------- 任务日志 ----------
     def log(self, *, ok: bool, msg: str, origin: str = "", voice: str = "",
             chars: int = 0, elapsed_ms: int = 0, queue_position: int = 0,
-            kind: str = "auto", segments: int = 0) -> None:
+            kind: str = "auto", segments: int = 0, text: str = "",
+            text_state: str = "") -> None:
         event = {
             "time": time.strftime("%Y-%m-%d %H:%M:%S"),
             "ts": int(time.time() * 1000),
             "ok": bool(ok),
             "msg": str(msg)[:300],
+            "text": str(text)[:500],
+            "text_state": str(text_state)[:40],
             "origin": str(origin)[:120],
             "voice": str(voice)[:80],
             "chars": int(chars),

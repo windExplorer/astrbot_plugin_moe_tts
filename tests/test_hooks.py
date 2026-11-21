@@ -229,6 +229,9 @@ def main():
           "_should_tts 用 store.prob_for，会话级优先")
     # 守卫「指令卡片可回退」与「新模块进热重载」
     check("指令卡片可回退文本", "_card_comps" in src_full and "render_kv_card" in src_full)
+    check("卡片用 chain_result 发出",
+          "yield event.chain_result(comps)" in src_full,
+          "yield 裸 Comp.Image 不会被框架 set_result，指令会没反应")
     check("新模块进热重载列表",
           '"display"' in src_full and '"card_render"' in src_full,
           "display/card_render 必须加入 _RELOAD_MODULES")

@@ -1,5 +1,13 @@
 # 更新日志
 
+## v0.8.1
+
+修复 `/语音状态`、`/语音音色` 两个指令「没反应」——升级到 v0.7.0 卡片版后这两个指令完全不输出。
+
+- **根因**：`_card_comps()` 渲染出卡片后，指令里是 `for c in comps: yield c`，直接 yield 了裸 `Comp.Image` 组件。AstrBot 的命令处理器（`pipeline/context_utils.py`）对异步生成器的每次 yield 只认 `MessageEventResult` / `CommandResult` 才会 `event.set_result()`；裸组件走的是「不设置结果」分支，于是消息从没发出去，表现为指令无响应。
+- **修复**：两处改为 `yield event.chain_result(comps)`，让框架收到合法的 `MessageEventResult`。同时把 `Comp.Image.fromBytes(png)` 的构造移进 `_card_comps()` 的 try 块——原来它在 try 外，一旦构造抛异常整个 handler 崩溃且不会回退文本；现在异常会记 warning 并降级为纯文本。
+- **守卫**：`test_hooks.py` 新增断言——卡片必须用 `chain_result` 发出，防止以后改回裸 yield。自检 core 129 + hooks 25 全过。
+
 ## v0.8.0
 
 补上**会话级语音概率**与设置入口：v0.7.0 只做了全局 `tts_probability`，帮助页没说、会话页也改不了，找不到在哪设。

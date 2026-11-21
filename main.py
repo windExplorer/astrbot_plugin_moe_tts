@@ -693,10 +693,10 @@ class MoeTtsPlugin(Star):
                 font_path=str(self.config.get("card_font_path", "") or ""),
                 data_dir=self._data_dir(),
             )
+            return [Comp.Image.fromBytes(png)] if png else None
         except Exception as e:  # noqa: BLE001
-            logger.debug(f"[moe_tts] 指令卡片渲染失败，回退文本: {e}")
+            logger.warning(f"[moe_tts] 指令卡片渲染失败，回退文本: {e}")
             return None
-        return [Comp.Image.fromBytes(png)] if png else None
 
     @filter.command("语音音色")
     async def cmd_voice(self, event: AstrMessageEvent, name: str = ""):
@@ -715,8 +715,7 @@ class MoeTtsPlugin(Star):
                 footnote="/语音音色 <名字> 切换，可不带文件后缀",
             )
             if comps:
-                for c in comps:
-                    yield c
+                yield event.chain_result(comps)
                 return
             lines = [f"🎙️ 当前音色：{cur_label}", "可用音色："]
             lines += [f"  · {display_mod.voice_label(v['name'], v.get('language', ''))}" for v in enabled]
@@ -756,8 +755,7 @@ class MoeTtsPlugin(Star):
             subtitle="当前会话", footnote="；".join(notes) if notes else "/语音音色 查看可用音色",
         )
         if comps:
-            for c in comps:
-                yield c
+            yield event.chain_result(comps)
             return
         lines = [
             "🎙️ 萌萌语音 · 状态",

@@ -122,6 +122,12 @@ def main():
         _h2 = _PILImage.open(_io.BytesIO(render_voices_card("音色列表", _voices, cols=2))).height
         _h6 = _PILImage.open(_io.BytesIO(render_voices_card("音色列表", _voices, cols=6))).height
         check("列数影响卡片高度", _h6 < _h2, f"2列高={_h2} 6列高={_h6}")
+        # 自适应宽度：长音色名应让卡片比默认更宽，避免省略
+        _w_short = _PILImage.open(_io.BytesIO(render_voices_card(
+            "音色列表", [("喵", "中文")], cols=3))).width
+        _w_long = _PILImage.open(_io.BytesIO(render_voices_card(
+            "音色列表", [("非常非常长的音色名字测试一二三四五六", "中文")], cols=3))).width
+        check("长名字自适应加宽", _w_long > _w_short, f"短={_w_short} 长={_w_long}")
     except Exception as e:
         check("音色网格卡渲染出 PNG", False, repr(e))
 

@@ -235,6 +235,9 @@ def main():
     check("音色卡走网格渲染且列数可配",
           "renderer=card_mod.render_voices_card" in src_full and "voice_card_cols" in src_full,
           "音色列表用网格卡，列数从配置读取")
+    check("音色卡脚注不含内部术语",
+          "可不带文件后缀" not in src_full and "发「/语音音色 名字」即可切换" in src_full,
+          "用户看不到后缀，不该用后缀做提示")
     check("新模块进热重载列表",
           '"display"' in src_full and '"card_render"' in src_full,
           "display/card_render 必须加入 _RELOAD_MODULES")

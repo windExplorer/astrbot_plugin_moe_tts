@@ -717,7 +717,7 @@ class MoeTtsPlugin(Star):
             comps = self._card_comps(
                 "音色列表", voice_rows,
                 subtitle=f"当前：{cur_label} · 共 {len(enabled)} 个",
-                footnote="/语音音色 <名字> 切换，可不带文件后缀",
+                footnote="发「/语音音色 名字」即可切换本会话音色",
                 renderer=card_mod.render_voices_card, current=cur_label,
                 cols=int(self.config.get("voice_card_cols", 3) or 3),
             )

@@ -503,11 +503,13 @@ class MoeTtsPlugin(Star):
             # 旧实现按语音段数截断文字，尾部文字（括号描写段 + 末段）永久丢失。
             # 现在文字按原文独立分段，循环取两者较大值，各自发完自己的全部。
             need_text = send_mode == "both" and not text_in_chain and not has_media
-            text_segs = self.engine._segment(full) if need_text else []
+            # 文字按原文本来的换行逐段发，不受语音侧 newline_min_len 合并影响：
+            # 语音按配置合成（短行可并成一条），文字仍按换行各发一个气泡。
+            text_segs = textutil_mod.split_text_by_newline(full) if need_text else []
             after = bool(cfg.get("text_after_voice", True))
             for i in range(max(len(res.files), len(text_segs))):
                 path = res.files[i] if i < len(res.files) else None
-                seg_text = self._seg_text_for(full, i, len(text_segs), cfg) if i < len(text_segs) else ""
+                seg_text = self._seg_text_for(full, i, len(text_segs), cfg, text_segs) if i < len(text_segs) else ""
                 if seg_text and not after:
                     if await self._realtime_send(event, [Comp.Plain(seg_text)]):
                         resent += 1
@@ -553,19 +555,23 @@ class MoeTtsPlugin(Star):
                 text=full, text_state=text_state,
             )
 
-    def _seg_text_for(self, full: str, index: int, total: int, cfg: dict) -> str:
+    def _seg_text_for(self, full: str, index: int, total: int, cfg: dict,
+                      segs: list[str] | None = None) -> str:
         """不合并 both 时文字如何随语音逐段发。
 
         补发的文字是**完整原文**（含括号语气描写），因为 AstrBot 结果链里的
         原文已被移除，这里必须把文本原样补回，遵守「文本绝不丢失」红线。
         语音侧才按 skip_bracket_tts 剥离括号（只读正文），两者口径不同是有意的：
         文字看到「（迷迷糊糊，声音很轻）\\n吃的什么。」全文，耳朵只听「吃的什么。」。
+
+        segs 由调用方传入「文字专用按换行分段」的结果，与语音分段解耦；
+        缺省时退回按语音口径分段（兼容旧调用）。
         """
         if total <= 1:
             return full
-        segs = self.engine._segment(full)
-        if index < len(segs):
-            return segs[index]
+        parts = segs if segs is not None else self.engine._segment(full)
+        if index < len(parts):
+            return parts[index]
         return ""
 
     async def _realtime_send(self, event, chain) -> bool:

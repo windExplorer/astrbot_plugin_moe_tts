@@ -192,6 +192,11 @@ def main():
     check("取消时补发文字",
           bool(cancel_blocks) and all("Plain(full)" in _ast.unparse(b) for b in cancel_blocks),
           "取消时文字已从结果链移除，必须补发完整原文")
+    # 守卫「文字按换行独立分段」：文字气泡不能受语音侧 newline_min_len 合并影响，
+    # 必须走 split_text_by_newline，而不是 engine._segment。
+    check("文字段走独立按换行分段",
+          "split_text_by_newline" in dtts_src,
+          "文字气泡按原文换行逐段发，语音才按配置合并短行")
 
     print(f"\nRESULT: PASS={PASS} FAIL={FAIL}")
     return 1 if FAIL else 0

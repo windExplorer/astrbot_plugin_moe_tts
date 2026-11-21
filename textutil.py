@@ -313,6 +313,18 @@ def split_segments(
     return [p for p in results if p and p.strip()]
 
 
+def split_text_by_newline(text: str) -> list[str]:
+    """文字展示专用：严格按换行分段，不做短行合并。
+
+    和语音分段解耦：语音侧受 newline_min_len 影响会把短行并入相邻行、
+    合成一条连续语音；但文字气泡应按原文本来的换行逐段发，短句也独立成一条。
+    纯文本无换行时返回单段。
+    """
+    if not text or not text.strip():
+        return []
+    return [ln.strip() for ln in re.split(r"\n+", text) if ln.strip()]
+
+
 def _hard_split(text: str, max_len: int) -> list[str]:
     """按字数硬切（0=不切）。尽量不在标记中间切。"""
     if max_len <= 0 or len(text) <= max_len:

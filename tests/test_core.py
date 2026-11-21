@@ -18,6 +18,7 @@ from textutil import (
     pcm_to_wav,
     parse_origin,
     split_segments,
+    split_text_by_newline,
     strip_brackets,
     strip_markups,
 )
@@ -74,6 +75,10 @@ def main():
     segs4 = split_segments("a" * 500, split_by_newline=False, segment_len="0", max_text_len=200)
     check("硬切上限", len(segs4) == 3 and all(len(x) <= 200 for x in segs4),
           f"len={len(segs4)} sizes={[len(x) for x in segs4]}")
+    # 文字展示按换行切，不受语音侧 newline_min_len 合并影响
+    shown = split_text_by_newline("很长的第一段文字内容足够多。\n你吃了吗。")
+    check("文字按换行不合并短行", len(shown) == 2 and shown[1] == "你吃了吗。", repr(shown))
+    check("文字单段无换行", len(split_text_by_newline("只有一段")) == 1)
 
     print("== 重复折叠 ==")
     _dup = "好嘞，我这就给你画一张超好看的专属画像吧！"

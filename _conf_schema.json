@@ -84,6 +84,13 @@
     "hint": "默认开。若环境缺中文字体会自动回退文本；想自定义字体用 card_font_path。",
     "default": true
   },
+  "voice_card_cols": {
+    "type": "int",
+    "title": "音色卡每行个数",
+    "description": "音色列表图片卡片一行显示几个方块，2~8。",
+    "hint": "默认 4。列数越多卡片越矮越紧凑，但方块变窄、长音色名会截断。",
+    "default": 4
+  },
   "card_font_path": {
     "type": "string",
     "title": "卡片字体路径",

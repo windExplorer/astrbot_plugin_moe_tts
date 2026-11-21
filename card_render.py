@@ -158,14 +158,17 @@ def render_voices_card(
     footnote: str = "",
     font_path: str = "",
     data_dir: str = "",
+    cols: int = VOICE_COLS,
 ) -> bytes | None:
-    """音色列表专用卡：一行 VOICE_COLS 个方块，每块显示音色名 + 语种。
+    """音色列表专用卡：一行 cols 个方块，每块显示音色名 + 语种。
 
-    voices 为 (音色名, 语种) 列表；current 匹配名字时高亮该块。失败返回 None。
+    voices 为 (音色名, 语种) 列表；current 匹配名字时高亮该块。
+    cols 限定 2~8（列太多方块太窄会看不清名字），失败返回 None。
     """
     if Image is None:
         return None
     try:
+        cols = max(2, min(8, int(cols)))
         f_title = _font(TITLE_SIZE, font_path, data_dir)
         f_name = _font(24, font_path, data_dir)
         f_lang = _font(19, font_path, data_dir)
@@ -177,8 +180,8 @@ def render_voices_card(
         shown = list(voices[:MAX_VOICES])
         cell_h = 84
         gap = 12
-        cell_w = (W - 2 * PAD - gap * (VOICE_COLS - 1)) // VOICE_COLS
-        rows = (len(shown) + VOICE_COLS - 1) // VOICE_COLS
+        cell_w = (W - 2 * PAD - gap * (cols - 1)) // cols
+        rows = (len(shown) + cols - 1) // cols
         body_h = rows * (cell_h + gap) if rows else 0
         h = HEAD_H + body_h + gap + FOOT_H
         img = Image.new("RGB", (W, h), CARD_BG)
@@ -194,8 +197,8 @@ def render_voices_card(
             d.text((PAD, 84), subtitle, font=f_sub, fill=ACCENT)
 
         for i, (name, lang) in enumerate(shown):
-            col = i % VOICE_COLS
-            row = i // VOICE_COLS
+            col = i % cols
+            row = i // cols
             x0 = PAD + col * (cell_w + gap)
             y0 = HEAD_H + gap + row * (cell_h + gap)
             active = bool(current) and name == current

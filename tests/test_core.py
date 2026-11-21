@@ -109,13 +109,19 @@ def main():
     except Exception as e:
         check("卡片渲染出 PNG", False, repr(e))
     from card_render import render_voices_card, VOICE_COLS
-    check("音色卡一行 3 个", VOICE_COLS == 3)
+    check("音色卡默认列数常量", VOICE_COLS == 3)
     try:
-        _vp = render_voices_card("音色列表",
-                                 [("卡提希娅", "中文"), ("千早爱音", "日语"), ("ad学姐", "中文"), ("桑多涅", "日语")],
-                                 current="卡提希娅", subtitle="当前：卡提希娅 · 共 4 个")
+        _voices = [("卡提希娅", "中文"), ("千早爱音", "日语"), ("ad学姐", "中文"),
+                   ("桑多涅", "日语"), ("千早", "日语"), ("喵喵", "中文")]
+        _vp = render_voices_card("音色列表", _voices, current="卡提希娅", cols=3)
         check("音色网格卡渲染出 PNG", bool(_vp) and _vp[:8] == b"\x89PNG\r\n\x1a\n",
               repr(_vp[:8]) if _vp else "None")
+        # 列数可调：6 列（2 行）应比 2 列（3 行）更矮
+        import io as _io
+        from PIL import Image as _PILImage
+        _h2 = _PILImage.open(_io.BytesIO(render_voices_card("音色列表", _voices, cols=2))).height
+        _h6 = _PILImage.open(_io.BytesIO(render_voices_card("音色列表", _voices, cols=6))).height
+        check("列数影响卡片高度", _h6 < _h2, f"2列高={_h2} 6列高={_h6}")
     except Exception as e:
         check("音色网格卡渲染出 PNG", False, repr(e))
 

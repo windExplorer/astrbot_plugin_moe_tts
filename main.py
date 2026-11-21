@@ -203,8 +203,8 @@ class MoeTtsPlugin(Star):
             "触发与范围": ["auto_tts", "tts_probability", "tts_scope", "enable_llm_tool",
                        "enable_user_trigger", "trigger_keywords", "text_keywords", "blocklist",
                        "allowlist"],
-            "发送与展示": ["send_mode", "command_card", "card_font_path", "skip_bracket_tts",
-                       "auto_breath", "auto_effect", "effect_intensity"],
+            "发送与展示": ["send_mode", "command_card", "voice_card_cols", "card_font_path",
+                       "skip_bracket_tts", "auto_breath", "auto_effect", "effect_intensity"],
             "分段": ["split_by_newline", "newline_min_len", "segment_len", "segment_first_len",
                    "segment_punct", "segment_merge", "max_text_len"],
             "容错": ["tts_concurrency", "tts_max_retry", "tts_retry_backoff", "tts_cooldown_sec"],
@@ -719,6 +719,7 @@ class MoeTtsPlugin(Star):
                 subtitle=f"当前：{cur_label} · 共 {len(enabled)} 个",
                 footnote="/语音音色 <名字> 切换，可不带文件后缀",
                 renderer=card_mod.render_voices_card, current=cur_label,
+                cols=int(self.config.get("voice_card_cols", 3) or 3),
             )
             if comps:
                 yield event.chain_result(comps)

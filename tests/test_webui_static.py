@@ -52,7 +52,7 @@ def main():
                       "分段试算", "极速克隆", "浅色主题", "深色主题", "从服务端同步", "保存更改",
                       "群聊", "私聊", "刷新头像", "刚刚", "同步列表", "联系人快照", "未启用",
                       "帮助", "使用帮助", "聊天指令", "重要说明", "语音 + 文字", "跟随默认",
-                      "指令回卡片", "语音触发概率", "指令回卡片（关=发文字）"]:
+                      "指令回卡片", "语音触发概率", "指令回卡片（关=发文字）", "音色卡每行个数"]:
             check(f"产物含文案「{token}」", token in js)
         # 浅色主题令牌与切换逻辑
         for token in ["data-theme", "moe-tts-theme", "--surface-solid", "light"]:
@@ -72,7 +72,7 @@ def main():
     # 新配置项必须在 WebUI 配置页可见：分组映射 + 中文标签齐全
     main_src = open(os.path.join(ROOT, "main.py"), "r", encoding="utf-8").read()
     cfg_src = open(os.path.join(ROOT, "webui-src", "src", "views", "ConfigView.vue"), "r", encoding="utf-8").read()
-    for key in ("command_card", "card_font_path", "tts_probability"):
+    for key in ("command_card", "voice_card_cols", "card_font_path", "tts_probability"):
         check(f"配置分组含 {key}", f'"{key}"' in main_src)
         check(f"配置页标签含 {key}", f"{key}:" in cfg_src)
 

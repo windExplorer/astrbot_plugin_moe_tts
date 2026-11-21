@@ -59,7 +59,7 @@ const sessions = computed<SessionFull[]>(() => {
     if (exist) { merged.push(exist); map.delete(origin); }
     else {
       merged.push({
-        origin, on: false, voice: "", send_mode: "", is_group: true,
+        origin, on: false, prob: 100, has_prob: false, voice: "", send_mode: "", is_group: true,
         group_id: g.id, user_id: "", group_name: g.name, nickname: "",
         avatar_id: g.id, avatar_kind: "group", last_active: 0,
         updated: "", has_state: false,
@@ -73,7 +73,7 @@ const sessions = computed<SessionFull[]>(() => {
     if (exist) { merged.push(exist); map.delete(origin); }
     else {
       merged.push({
-        origin, on: false, voice: "", send_mode: "", is_group: false,
+        origin, on: false, prob: 100, has_prob: false, voice: "", send_mode: "", is_group: false,
         group_id: "", user_id: f.id, group_name: "", nickname: f.name || f.nickname || f.id,
         avatar_id: f.id, avatar_kind: "user", last_active: 0,
         updated: "", has_state: false,
@@ -213,16 +213,20 @@ async function clearAll() {
   try { await apiPost("sessions/clear"); await load(); toast("已清空", "ok"); }
   catch (e: any) { toast(e?.message || "清空失败", "err"); }
 }
-function openEdit(s: SessionFull) { editing.value = { ...s }; }
+function openEdit(s: SessionFull) { editing.value = { ...s, prob: s.has_prob ? Math.round(s.prob) : 0 }; }
 async function saveEdit() {
   const s = editing.value;
   if (!s) return;
+  let prob = Number(s.prob);
+  if (!Number.isFinite(prob) || prob < 0) prob = 0;
+  prob = Math.min(100, Math.round(prob));
   try {
     await apiPost("sessions/set", { origin: s.origin, voice: s.voice, send_mode: s.send_mode,
-      on: s.on, nickname: s.nickname, group_name: s.group_name });
+      on: s.on, prob, nickname: s.nickname, group_name: s.group_name });
     // 立即写回源数据刷新列表，同时显示名/音色/开关等就地更新
     upsertLocalSession(s, {
       on: s.on, voice: s.voice, send_mode: s.send_mode,
+      prob: prob || 100, has_prob: prob > 0,
       nickname: s.nickname, group_name: s.group_name,
     });
     editing.value = null;
@@ -293,7 +297,7 @@ async function saveEdit() {
             <span v-else class="badge" :class="s.on ? 'ok' : ''" style="font-size:10px"><Volume2 :size="10" /> {{ s.on ? '语音开' : '语音关' }}</span>
           </div>
           <div style="color:var(--faint);font-size:11px;margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
-            {{ subName(s) }}<template v-if="s.has_state"> · 音色 {{ s.voice || '默认' }} · {{ s.send_mode || '默认' }}</template>
+            {{ subName(s) }}<template v-if="s.has_state"> · 音色 {{ s.voice || '默认' }} · {{ s.send_mode || '默认' }} · {{ s.has_prob ? `${Math.round(s.prob)}% 发声` : '概率跟随全局' }}</template>
           </div>
         </div>
         <div style="color:var(--faint);font-size:11px;white-space:nowrap;text-align:right;min-width:52px">
@@ -326,6 +330,9 @@ async function saveEdit() {
           </div>
           <div class="field"><label class="field-label">发送方式</label>
             <BaseSelect v-model="editing.send_mode" :options="SEND_OPTIONS" />
+          </div>
+          <div class="field"><label class="field-label">语音概率（0=跟随全局，1~100=发声百分比）</label>
+            <input v-model.number="editing.prob" class="input" type="number" min="0" max="100" step="1" />
           </div>
           <div class="row" style="justify-content:space-between">
             <span>自动语音</span><button class="switch" :class="{ on: editing.on }" @click="editing.on = !editing.on"></button>

@@ -224,6 +224,9 @@ def main():
     check("明确触发不受概率影响",
           bool(prob_lines) and "not want" in prob_lines[0],
           "关键词/工具触发必须始终发声")
+    check("概率会话优先全局兜底",
+          "prob_for" in prob_src and "tts_probability" in open(os.path.join(ROOT, "store.py"), encoding="utf-8").read(),
+          "_should_tts 用 store.prob_for，会话级优先")
     # 守卫「指令卡片可回退」与「新模块进热重载」
     check("指令卡片可回退文本", "_card_comps" in src_full and "render_kv_card" in src_full)
     check("新模块进热重载列表",

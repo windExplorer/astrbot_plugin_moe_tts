@@ -368,12 +368,8 @@ class MoeTtsPlugin(Star):
                 return False
         # 语音概率：参照 cosyvoice，仅「纯自动语音」触发时抽概率；
         # 用户明确要求朗读（关键词触发 want）时不抽，保证显式指令一定发声。
-        prob = cfg.get("tts_probability", 100)
-        try:
-            p = float(prob)
-        except (TypeError, ValueError):
-            p = 100.0
-        p = max(0.0, min(100.0, p))
+        # 概率优先取会话级 prob（WebUI 会话页 / /语音开 0.8 设置），否则跟随全局 tts_probability。
+        p = self.store.prob_for(origin, cfg)
         if not want and p < 100 and random.random() * 100 >= p:
             logger.debug(f"[moe_tts] 本轮语音概率未命中（{p:g}%），仅发文字")
             return False
@@ -650,11 +646,34 @@ class MoeTtsPlugin(Star):
     # ---------- 指令 ----------
     @filter.command("语音开")
     async def cmd_on(self, event: AstrMessageEvent):
-        cfg = self._refresh_cfg()
-        self.store.session_update(event.unified_msg_origin, {
-            "on": True, "updated": time.strftime("%Y-%m-%d %H:%M:%S")
+        """开启本会话语音；可带概率：/语音开 0.8 或 /语音开 80 = 80% 回复发声。"""
+        self._refresh_cfg()
+        origin = event.unified_msg_origin
+        raw = (event.message_str or "").strip()
+        arg = re.sub(r"^\s*/语音开\s*", "", raw).strip()
+        m = re.search(r"(\d+(?:\.\d+)?)\s*%?", arg)
+        if not m:
+            self.store.session_update(origin, {
+                "on": True, "prob": True, "updated": time.strftime("%Y-%m-%d %H:%M:%S")
+            })
+            yield event.plain_result("🎙️ 已开启本会话的自动语音，每句都会念～（想按比例发声用 /语音开 0.8）")
+            return
+        try:
+            val = float(m.group(1))
+        except ValueError:
+            val = -1
+        if val <= 0 or val > 100:
+            yield event.plain_result("这个概率没看懂～ 用 /语音开 0.8 表示 80% 发声，/语音开 100 每句都念。")
+            return
+        prob = val * 100 if val <= 1 and "%" not in arg else val
+        prob = max(1.0, min(100.0, round(prob, 1)))
+        self.store.session_update(origin, {
+            "on": True, "prob": prob / 100.0, "updated": time.strftime("%Y-%m-%d %H:%M:%S")
         })
-        yield event.plain_result("🎙️ 已开启本会话的自动语音，之后我会用声音回复你～")
+        yield event.plain_result(
+            f"🎙️ 已开启本会话语音，约 {prob:g}% 的回复会念出来（每次随机抽）。"
+            f"想每句都念用 /语音开 100，关闭用 /语音关。"
+        )
 
     @filter.command("语音关")
     async def cmd_off(self, event: AstrMessageEvent):

@@ -297,6 +297,8 @@ def _sessions(plugin):
             out.append({
                 "origin": origin,
                 "on": bool(s.get("on", False)),
+                "prob": round(plugin.store.prob_for(origin, plugin.config), 1),
+                "has_prob": "prob" in s,
                 "voice": str(s.get("voice", "") or ""),
                 "send_mode": str(s.get("send_mode", "") or ""),
                 "is_group": is_group,
@@ -359,6 +361,24 @@ def _session_set(plugin):
         changes: dict[str, Any] = {}
         if "on" in body:
             changes["on"] = bool(body["on"])
+        if "prob" in body:
+            # 0 / None / 空串 = 跟随全局概率（移除会话级设置）；0<p<=1 视为小数概率。
+            raw = body["prob"]
+            if raw is None or raw == "" or raw is False:
+                s = plugin.store.sessions.data.setdefault(origin, {})
+                s.pop("prob", None)
+            else:
+                try:
+                    p = float(raw)
+                    if p <= 0:
+                        s = plugin.store.sessions.data.setdefault(origin, {})
+                        s.pop("prob", None)
+                    elif p <= 1:
+                        changes["prob"] = p
+                    else:
+                        changes["prob"] = min(100.0, p) / 100.0
+                except (TypeError, ValueError):
+                    pass
         if "voice" in body:
             changes["voice"] = str(body["voice"] or "")
         if "send_mode" in body:

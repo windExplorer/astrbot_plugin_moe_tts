@@ -112,7 +112,37 @@ class PluginStore:
         s = self.session(origin)
         if "on" in s:
             return bool(s["on"])
+        # 会话级概率本身即代表开启（CosyVoice 口径：prob 存在=该会话语音已开）
+        if "prob" in s:
+            return True
         return bool((cfg or {}).get("auto_tts", False))
+
+    def prob_for(self, origin: str, cfg: dict | None = None) -> float:
+        """会话语音概率（0~100）。
+
+        优先会话级 prob：True=常开(100)，0<p<1=概率(乘 100)，数字=百分数；
+        未设置时跟随全局 tts_probability（默认 100）。
+        """
+        s = self.session(origin)
+        raw = s.get("prob")
+        if raw is True:
+            return 100.0
+        if isinstance(raw, (int, float)) and not isinstance(raw, bool):
+            p = float(raw)
+            if 0 < p <= 1:
+                p *= 100
+            return max(0.0, min(100.0, p))
+        try:
+            return max(0.0, min(100.0, float((cfg or {}).get("tts_probability", 100))))
+        except (TypeError, ValueError):
+            return 100.0
+
+    def set_prob(self, origin: str, value: float | bool | None) -> None:
+        """设置会话概率：None/0 视为关闭并移除会话状态；1.0/True 为常开；其余为概率。"""
+        if value is None or (isinstance(value, (int, float)) and not isinstance(value, bool) and value <= 0):
+            self.session_delete(origin)
+            return
+        self.session_set(origin, "prob", value)
 
     def voice_for(self, origin: str) -> str:
         return str(self.session(origin).get("voice", "") or "")

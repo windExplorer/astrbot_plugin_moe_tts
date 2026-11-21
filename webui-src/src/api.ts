@@ -136,4 +136,4 @@ export interface EventItem {
 }
 export interface Voice { name: string; file: string; text: string; language: string; enabled: boolean; markup?: boolean; source: string }
 export interface Server { index: number; name: string; type: string; url: string; enabled: boolean; timeout: number }
-export interface Session { origin: string; on: boolean; voice: string; send_mode: string; nickname: string; group: string; updated: string }
+export interface Session { origin: string; on: boolean; prob: number; has_prob: boolean; voice: string; send_mode: string; nickname: string; group: string; updated: string }

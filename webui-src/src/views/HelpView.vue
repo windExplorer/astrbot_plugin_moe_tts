@@ -5,7 +5,7 @@ import {
 } from "lucide-vue-next";
 
 const cmds = [
-  { cmd: "/语音开", desc: "开启当前聊天的自动语音，之后机器人回复会自动朗读，重启不丢。", persist: "持久" },
+  { cmd: "/语音开", desc: "开启当前聊天自动语音，每句都念。带参数按比例发声：/语音开 0.8（80%）、/语音开 100（常开）。", persist: "持久" },
   { cmd: "/语音关", desc: "关闭当前聊天的自动语音，改回纯文字回复。", persist: "持久" },
   { cmd: "/语音音色 [名]", desc: "查看可用音色列表；带名字则切换本聊天的音色。", persist: "持久" },
   { cmd: "/语音状态", desc: "查看本会话语音开关、音色、发送方式、服务端与冷却状态。", persist: "—" },
@@ -21,7 +21,7 @@ const tools = [
 const pages = [
   { name: "总览", icon: Sparkles, desc: "服务端连通状态、任务统计、最近任务。服务端没开时会显示红色「未连通」。" },
   { name: "音色库", icon: Mic2, desc: "从服务端同步音色并存本地；点音色直接播放服务端参考音频（带缓存），试听不走克隆。" },
-  { name: "会话管理", icon: Settings2, desc: "全部/私聊/群聊标签；同步机器人全部群和好友；按会话开关语音、切音色。" },
+  { name: "会话管理", icon: Settings2, desc: "全部/私聊/群聊标签；同步机器人全部群和好友；按会话开关语音、切音色、设发声概率（0=跟随全局）。" },
   { name: "合成实验室", icon: FlaskConical, desc: "输入文本走 TTS 克隆合成，查看波形/耗时、分段试算、下载 WAV；ASR 识别也在这里。" },
   { name: "服务端", icon: Server, desc: "配置多个服务端、单选启用；直连 tts_serve 时可切换后端、管理显存。" },
   { name: "任务日志", icon: ScrollText, desc: "合成成功/失败历史、耗时、字数、排队位置，支持筛选与搜索。" },
@@ -60,6 +60,7 @@ const pages = [
       <div class="card-title"><Bot class="ico" :size="17" /> 触发方式</div>
       <div class="grid grid-2" style="gap:12px;font-size:13px;color:var(--muted);line-height:1.7">
         <div>• <b style="color:var(--text)">自动语音</b>：配置开启 auto_tts，或某聊天发 /语音开。</div>
+        <div>• <b style="color:var(--text)">语音概率</b>：全局在「配置 → 触发与范围 → 语音触发概率」设 0~100；单个会话在「会话管理」编辑里设（0=跟随全局）。也可聊天里发 <code style="color:var(--brand-soft)">/语音开 0.8</code>。未命中只发文字；关键词与本条朗读指令不受概率影响。</div>
         <div>• <b style="color:var(--text)">关键词</b>：消息含「念出来/读出来」时本条朗读。</div>
         <div>• <b style="color:var(--text)">自然语言</b>：说「以后用语音交流」，模型通过 Skill 自动开关。</div>
         <div>• <b style="color:var(--text)">指定文字</b>：说「这段用文字回复」本条只发文字，不改开关。</div>

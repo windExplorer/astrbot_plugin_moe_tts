@@ -248,6 +248,22 @@ def main():
     asyncio.run(_probe())
     srv.shutdown()
 
+    print("== 会话级语音概率 ==")
+    import tempfile as _tf
+    from store import PluginStore as _Store
+    with _tf.TemporaryDirectory() as td:
+        st = _Store(td)
+        cfg = {"tts_probability": 60}
+        check("未设置跟随全局", st.prob_for("o1", cfg) == 60)
+        check("prob 不存在视为未开", not st.is_on("o1", cfg))
+        st.set_prob("o1", 0.8)
+        check("小数概率转百分数", st.prob_for("o1", cfg) == 80)
+        check("有 prob 视为开启", st.is_on("o1", cfg))
+        st.set_prob("o1", True)
+        check("True 为常开", st.prob_for("o1", cfg) == 100)
+        st.set_prob("o1", None)
+        check("清除后回到全局", st.prob_for("o1", cfg) == 60 and not st.is_on("o1", cfg))
+
     print("== 联系人初始化烟雾测试（防构造期 TypeError）==")
     import tempfile as _tf
     from store import PluginStore

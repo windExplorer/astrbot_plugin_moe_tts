@@ -198,6 +198,28 @@ def main():
           "split_text_by_newline" in dtts_src,
           "文字气泡按原文换行逐段发，语音才按配置合并短行")
 
+    # 守卫「语音概率」：概率判定必须存在且只作用于非 want（明确关键词触发不抽概率）
+    src_full = open(MAIN, "r", encoding="utf-8").read()
+    check("概率判定存在", "tts_probability" in src_full and "random.random()" in src_full)
+    should_fn = extract_methods(src_full, ["_should_tts"]).get("_should_tts")
+    check("抠到 _should_tts", should_fn is not None)
+    prob_src = ""
+    if cls:
+        node = next((n for n in cls.body
+                     if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+                     and n.name == "_should_tts"), None)
+        if node is not None:
+            prob_src = ast.unparse(node)
+    prob_lines = [l for l in prob_src.splitlines() if "random.random" in l]
+    check("明确触发不受概率影响",
+          bool(prob_lines) and "not want" in prob_lines[0],
+          "关键词/工具触发必须始终发声")
+    # 守卫「指令卡片可回退」与「新模块进热重载」
+    check("指令卡片可回退文本", "_card_comps" in src_full and "render_kv_card" in src_full)
+    check("新模块进热重载列表",
+          '"display"' in src_full and '"card_render"' in src_full,
+          "display/card_render 必须加入 _RELOAD_MODULES")
+
     print(f"\nRESULT: PASS={PASS} FAIL={FAIL}")
     return 1 if FAIL else 0
 

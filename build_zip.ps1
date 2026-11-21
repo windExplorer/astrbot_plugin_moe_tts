@@ -47,6 +47,8 @@ $includeList = @(
     "avatar.py",
     "contacts.py",
     "textutil.py",
+    "display.py",
+    "card_render.py",
     "tts_engine.py",
     "translator.py",
     "tts_api.py",

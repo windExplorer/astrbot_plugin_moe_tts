@@ -77,12 +77,33 @@
     "options": ["both", "voice_only"],
     "default": "both"
   },
+  "command_card": {
+    "type": "bool",
+    "title": "指令回卡片",
+    "description": "/语音状态、/语音音色 以图片卡片展示，关闭则回退纯文本。",
+    "hint": "默认开。若环境缺中文字体会自动回退文本；想自定义字体用 card_font_path。",
+    "default": true
+  },
+  "card_font_path": {
+    "type": "string",
+    "title": "卡片字体路径",
+    "description": "自定义卡片中文字体文件（.ttf/.ttc/.otf）。",
+    "hint": "留空自动查找：data/plugin_data/<插件名>/fonts → data/fonts → 系统字体。不打包字体，Docker 用户往挂载卷丢文件即可。",
+    "default": ""
+  },
   "auto_tts": {
     "type": "bool",
     "title": "自动语音",
     "description": "是否默认把符合条件的回复朗读出来。",
     "hint": "关闭时仅关键词触发、/语音 或 LLM 工具才发声。会话 /语音开 可单独覆盖。",
     "default": false
+  },
+  "tts_probability": {
+    "type": "int",
+    "title": "语音触发概率（%）",
+    "description": "纯自动语音按此概率发声，未命中只发文字，100=每句都念。",
+    "hint": "参照萌萌 CosyVoice：仅自动语音抽概率；关键词触发、/语音 指令与 LLM 工具不受影响，始终发声。0=自动语音全关。",
+    "default": 100
   },
   "tts_scope": {
     "type": "string",

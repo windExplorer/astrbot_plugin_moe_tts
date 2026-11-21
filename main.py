@@ -12,6 +12,7 @@ import asyncio
 import importlib
 import json
 import os
+import random
 import re
 import sys
 import time
@@ -46,11 +47,14 @@ from . import tts_api as tts_api_mod
 from . import webapi as webapi_mod
 from . import avatar as avatar_mod
 from . import contacts as contacts_mod
+from . import display as display_mod
+from . import card_render as card_mod
 
 PLUGIN_ID = "astrbot_plugin_moe_tts"
 
 _RELOAD_MODULES = [
-    "textutil", "store", "server", "translator", "avatar", "contacts", "tts_engine", "tts_api", "webapi",
+    "textutil", "display", "card_render", "store", "server", "translator", "avatar", "contacts",
+    "tts_engine", "tts_api", "webapi",
 ]
 _PKG = __package__ or PLUGIN_ID
 
@@ -196,10 +200,11 @@ class MoeTtsPlugin(Star):
         return {
             "服务端": ["servers", "timeout", "tts_queue_max_position", "fast_clone"],
             "音色与语言": ["default_voice", "voices"],
-            "触发与范围": ["auto_tts", "tts_scope", "enable_llm_tool", "enable_user_trigger",
-                       "trigger_keywords", "text_keywords", "blocklist", "allowlist"],
-            "发送与展示": ["send_mode", "skip_bracket_tts", "auto_breath", "auto_effect",
-                       "effect_intensity"],
+            "触发与范围": ["auto_tts", "tts_probability", "tts_scope", "enable_llm_tool",
+                       "enable_user_trigger", "trigger_keywords", "text_keywords", "blocklist",
+                       "allowlist"],
+            "发送与展示": ["send_mode", "command_card", "card_font_path", "skip_bracket_tts",
+                       "auto_breath", "auto_effect", "effect_intensity"],
             "分段": ["split_by_newline", "newline_min_len", "segment_len", "segment_first_len",
                    "segment_punct", "segment_merge", "max_text_len"],
             "容错": ["tts_concurrency", "tts_max_retry", "tts_retry_backoff", "tts_cooldown_sec"],
@@ -361,6 +366,17 @@ class MoeTtsPlugin(Star):
             result = event.get_result()
             if not (self._get_flag(event, "llm_this_round", False) or self._is_llm(result)):
                 return False
+        # 语音概率：参照 cosyvoice，仅「纯自动语音」触发时抽概率；
+        # 用户明确要求朗读（关键词触发 want）时不抽，保证显式指令一定发声。
+        prob = cfg.get("tts_probability", 100)
+        try:
+            p = float(prob)
+        except (TypeError, ValueError):
+            p = 100.0
+        p = max(0.0, min(100.0, p))
+        if not want and p < 100 and random.random() * 100 >= p:
+            logger.debug(f"[moe_tts] 本轮语音概率未命中（{p:g}%），仅发文字")
+            return False
         return True
 
     # ---------- LLM 回复钩子 ----------
@@ -602,22 +618,53 @@ class MoeTtsPlugin(Star):
         })
         yield event.plain_result("🔇 已关闭本会话的自动语音，改用文字回复～")
 
+    def _card_comps(self, title: str, rows: list[tuple[str, str]], *,
+                    subtitle: str = "", footnote: str = "") -> list | None:
+        """指令卡片的消息组件；配置关闭或渲染失败时返回 None 让调用方发文本。"""
+        if not bool(self.config.get("command_card", True)):
+            return None
+        try:
+            png = card_mod.render_kv_card(
+                title, rows, subtitle=subtitle, footnote=footnote,
+                font_path=str(self.config.get("card_font_path", "") or ""),
+                data_dir=self._data_dir(),
+            )
+        except Exception as e:  # noqa: BLE001
+            logger.debug(f"[moe_tts] 指令卡片渲染失败，回退文本: {e}")
+            return None
+        return [Comp.Image.fromBytes(png)] if png else None
+
     @filter.command("语音音色")
     async def cmd_voice(self, event: AstrMessageEvent, name: str = ""):
         voices = await self.engine.voices()
+        enabled = [v for v in voices if v.get("enabled", True)]
         if not name:
             cur = self.store.voice_for(event.unified_msg_origin) or self.engine.effective_default_voice(voices)
-            lines = [f"🎙️ 当前音色：{cur or '未设置'}", "可用音色："]
-            lines += [f"  · {v['name']}" + (f"（{v['language']}）" if v.get("language") else "")
-                      for v in voices if v.get("enabled", True)]
+            cur_label = display_mod.strip_voice_ext(cur) or "未设置"
+            rows = [("当前音色", cur_label)] + [
+                (f"· {display_mod.strip_voice_ext(v['name'])}", display_mod.language_display(v.get("language", "")))
+                for v in enabled
+            ]
+            comps = self._card_comps(
+                "音色列表", rows,
+                subtitle=f"当前：{cur_label} · 共 {len(enabled)} 个",
+                footnote="/语音音色 <名字> 切换，可不带文件后缀",
+            )
+            if comps:
+                for c in comps:
+                    yield c
+                return
+            lines = [f"🎙️ 当前音色：{cur_label}", "可用音色："]
+            lines += [f"  · {display_mod.voice_label(v['name'], v.get('language', ''))}" for v in enabled]
             yield event.plain_result("\n".join(lines))
             return
-        match = next((v for v in voices if v["name"] == name), None)
+        match = display_mod.match_voice(name, voices)
         if not match:
-            yield event.plain_result(f"没找到音色「{name}」哦，用 /语音音色 查看可用列表～")
+            yield event.plain_result(f"没找到音色「{display_mod.strip_voice_ext(name)}」哦，用 /语音音色 查看可用列表～")
             return
-        self.store.session_set(event.unified_msg_origin, "voice", name)
-        yield event.plain_result(f"🎙️ 本会话音色已切换为：{name}")
+        # 存服务端真实名（带后缀），保证合成链路不变；展示才去后缀
+        self.store.session_set(event.unified_msg_origin, "voice", match["name"])
+        yield event.plain_result(f"🎙️ 本会话音色已切换为：{display_mod.strip_voice_ext(match['name'])}")
 
     @filter.command("语音状态")
     async def cmd_status(self, event: AstrMessageEvent):
@@ -626,17 +673,36 @@ class MoeTtsPlugin(Star):
         active = self.router.active
         on = self.store.is_on(origin, cfg)
         voice = self.store.voice_for(origin) or self.engine.effective_default_voice()
+        mode = self.store.send_mode_for(origin, cfg)
+        srv_name = active.name if active else "未配置"
+        srv_type = display_mod.server_type_display(active.type) if active else "-"
+        rows = [
+            ("会话语音", "开启" if on else "关闭"),
+            ("当前音色", display_mod.strip_voice_ext(voice) or "未设置"),
+            ("发送方式", display_mod.send_mode_display(mode)),
+            ("服务端", f"{srv_name}（{srv_type}）"),
+        ]
+        notes = []
+        if self.router.in_cooldown:
+            notes.append(f"冷却中（剩余 {self.router.cooldown_remaining:.0f}s）")
+        if self.router.last_error:
+            notes.append(f"上次错误：{self.router.last_error[:60]}")
+        comps = self._card_comps(
+            "萌萌语音 · 状态", rows,
+            subtitle="当前会话", footnote="；".join(notes) if notes else "/语音音色 查看可用音色",
+        )
+        if comps:
+            for c in comps:
+                yield c
+            return
         lines = [
             "🎙️ 萌萌语音 · 状态",
             f"  会话语音：{'开启' if on else '关闭'}",
-            f"  当前音色：{voice or '未设置'}",
-            f"  发送方式：{self.store.send_mode_for(origin, cfg)}",
-            f"  服务端：{active.name if active else '未配置'}（{active.type if active else '-'}）",
+            f"  当前音色：{display_mod.strip_voice_ext(voice) or '未设置'}",
+            f"  发送方式：{display_mod.send_mode_display(mode)}",
+            f"  服务端：{srv_name}（{srv_type}）",
         ]
-        if self.router.in_cooldown:
-            lines.append(f"  ⚠️ 冷却中（剩余 {self.router.cooldown_remaining:.0f}s）")
-        if self.router.last_error:
-            lines.append(f"  上次错误：{self.router.last_error[:60]}")
+        lines += [f"  ⚠️ {n}" if n.startswith("冷却") else f"  {n}" for n in notes]
         yield event.plain_result("\n".join(lines))
 
     @filter.command("语音")
@@ -719,13 +785,13 @@ class MoeTtsPlugin(Star):
             voice(string): 音色名，可用 list_voices 查看
         """
         voices = await self.engine.voices()
-        match = next((v for v in voices if v["name"] == voice), None)
+        match = display_mod.match_voice(voice, voices)
         if not match:
-            names = "、".join(v["name"] for v in voices if v.get("enabled", True))
-            return f"没找到音色「{voice}」。可用音色：{names or '（暂无）'}"
-        self.store.session_set(event.unified_msg_origin, "voice", voice)
+            names = "、".join(display_mod.strip_voice_ext(v["name"]) for v in voices if v.get("enabled", True))
+            return f"没找到音色「{display_mod.strip_voice_ext(voice)}」。可用音色：{names or '（暂无）'}"
+        self.store.session_set(event.unified_msg_origin, "voice", match["name"])
         self._set_flag(event, "suppress", True)
-        return f"已把本聊天音色切换为：{voice}"
+        return f"已把本聊天音色切换为：{display_mod.strip_voice_ext(match['name'])}"
 
     @filter.llm_tool(name="list_voices")
     async def tool_list_voices(self, event: AstrMessageEvent):
@@ -733,7 +799,7 @@ class MoeTtsPlugin(Star):
         voices = await self.engine.voices()
         if not voices:
             return "目前没有可用的音色，请到 WebUI 添加或检查服务端。"
-        lines = [f"· {v['name']}" + (f"（{v['language']}）" if v.get("language") else "")
+        lines = [f"· {display_mod.voice_label(v['name'], v.get('language', ''))}"
                  for v in voices if v.get("enabled", True)]
         return "可用音色：\n" + "\n".join(lines)
 

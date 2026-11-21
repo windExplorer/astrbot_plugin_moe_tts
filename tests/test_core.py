@@ -80,6 +80,35 @@ def main():
     check("文字按换行不合并短行", len(shown) == 2 and shown[1] == "你吃了吗。", repr(shown))
     check("文字单段无换行", len(split_text_by_newline("只有一段")) == 1)
 
+    print("== 展示文案（去后缀 / 中文化）==")
+    from display import (
+        strip_voice_ext, language_display, send_mode_display,
+        server_type_display, voice_label, match_voice,
+    )
+    check("去 .mp3 后缀", strip_voice_ext("卡提希娅.mp3") == "卡提希娅")
+    check("去 .WAV 大写后缀", strip_voice_ext("ad学姐.WAV") == "ad学姐")
+    check("无后缀不变", strip_voice_ext("千早爱音") == "千早爱音")
+    check("语种 zh 中文", language_display("zh") == "中文")
+    check("语种 ja 日语", language_display("ja") == "日语")
+    check("语种未知原样", language_display("xx") == "xx")
+    check("发送方式 both", send_mode_display("both") == "语音+文本")
+    check("发送方式 voice_only", send_mode_display("voice_only") == "仅语音")
+    check("服务端 taskhub", server_type_display("taskhub") == "任务中转站")
+    check("音色整条文案", voice_label("桑多涅-日语.mp3", "ja") == "桑多涅-日语（日语）")
+    _vl = [{"name": "卡提希娅.mp3", "language": "zh"}, {"name": "千早爱音.wav", "language": "ja"}]
+    check("免后缀精确匹配", match_voice("卡提希娅", _vl)["name"] == "卡提希娅.mp3")
+    check("带后缀仍能匹配", match_voice("千早爱音.wav", _vl)["name"] == "千早爱音.wav")
+    check("匹配不到返回 None", match_voice("不存在", _vl) is None)
+
+    print("== 图片卡片渲染 ==")
+    from card_render import render_kv_card
+    try:
+        _png = render_kv_card("测试", [("会话语音", "开启"), ("发送方式", "语音+文本")], footnote="测试卡")
+        check("卡片渲染出 PNG", bool(_png) and _png[:8] == b"\x89PNG\r\n\x1a\n",
+              repr(_png[:8]) if _png else "None")
+    except Exception as e:
+        check("卡片渲染出 PNG", False, repr(e))
+
     print("== 重复折叠 ==")
     _dup = "好嘞，我这就给你画一张超好看的专属画像吧！"
     check("折叠紧邻重复", collapse_adjacent_repeats(_dup + _dup) == _dup)
